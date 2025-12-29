@@ -11,41 +11,178 @@ A continuously “thinking” paper-trading sandbox:
 
 ---
 
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph "Web Interface"
+        UI[Web Dashboard<br/>Flask + vis-network]
+        UI --> API[REST API Endpoints]
+        API --> UI
+    end
+
+    subgraph "Background Workers"
+        MarketWorker[Market Worker<br/>Data Collection]
+        DreamWorker[Dream Worker<br/>KG Maintenance]
+        ThinkWorker[Think Worker<br/>Multi-Agent Decisions]
+        
+        MarketWorker -->|Price Data| DB[(SQLite Database)]
+        DreamWorker -->|KG Updates| DB
+        ThinkWorker -->|Insights/Trades| DB
+    end
+
+    subgraph "Data Processing"
+        YahooAPI[Yahoo Finance API]
+        Indicators[Technical Indicators]
+        Signals[Market Signals]
+        Correlation[Correlation Analysis]
+        LLM[LLM Committee<br/>Ollama API]
+    end
+
+    subgraph "Knowledge Graph"
+        Nodes[Nodes<br/>Investibles/Bellwethers]
+        Edges[Edges<br/>Relationships]
+        Channels[Edge Channels<br/>correlates, drives, etc.]
+    end
+
+    subgraph "Portfolio Management"
+        Portfolio[Paper Portfolio]
+        Trades[Trade Execution]
+        Guardrails[Guard Rails<br/>Risk Management]
+    end
+
+    MarketWorker --> YahooAPI
+    YahooAPI --> Indicators
+    Indicators --> Signals
+    Signals --> DB
+    
+    DreamWorker --> Correlation
+    Correlation --> LLM
+    LLM --> Edges
+    Edges --> Nodes
+    
+    ThinkWorker --> LLM
+    LLM --> Trades
+    Trades --> Portfolio
+    Portfolio --> Guardrails
+    
+    DB --> UI
+    Nodes --> UI
+    Edges --> UI
+    Portfolio --> UI
+```
+
+## Process Flow
+
+```mermaid
+sequenceDiagram
+    participant M as Market Worker
+    participant D as Dream Worker
+    participant T as Think Worker
+    participant DB as SQLite Database
+    participant LLM as Ollama LLM
+    participant UI as Web Interface
+
+    loop Continuous Operation
+        M->>YahooAPI: Fetch Prices (every 3 min)
+        YahooAPI->>M: Price Data
+        M->>DB: Store Snapshot
+        M->>DB: Update Positions
+        
+        D->>DB: Read Latest Snapshot
+        D->>Correlation: Analyze Random Pair
+        D->>LLM: Label Relationships (30% chance)
+        LLM->>D: JSON Channels
+        D->>DB: Update Edge Weights
+        
+        T->>DB: Read Snapshot + Portfolio
+        T->>LLM: Multi-Agent Committee
+        LLM->>T: Decisions + Explanation
+        T->>DB: Store Insight
+        alt Auto Trade Enabled
+            T->>DB: Execute Paper Trades
+            DB->>T: Trade Results
+        end
+        
+        UI->>DB: Fetch State
+        DB->>UI: Nodes, Edges, Portfolio
+    end
+```
+
+## Three-Worker Architecture
+
+```mermaid
+flowchart LR
+    subgraph Market_Cycle["Market Worker Cycle (Every 3 min)"]
+        A1[Fetch Yahoo Prices] --> A2[Compute Indicators]
+        A2 --> A3[Generate Signals]
+        A3 --> A4[Store Snapshot]
+        A4 --> A5[Mark-to-Market]
+    end
+
+    subgraph Dream_Cycle["Dream Worker Cycle (Every 4 min)"]
+        B1[Select Random Pair] --> B2[Calculate Correlation]
+        B2 --> B3{LLM Labeling?}
+        B3 -->|Yes| B4[Call Ollama API]
+        B3 -->|No| B5[Heuristic Channels]
+        B4 --> B6[Update Edge Channels]
+        B5 --> B6
+        B6 --> B7[Update Node Scores]
+    end
+
+    subgraph Think_Cycle["Think Worker Cycle (Every 5 min)"]
+        C1[Read Latest Snapshot] --> C2[Build Market Context]
+        C2 --> C3[Multi-Agent LLM Call]
+        C3 --> C4[Parse Decisions]
+        C4 --> C5[Critic Scoring]
+        C5 --> C6{Starred?}
+        C6 -->|Yes| C7[Execute Trades]
+        C6 -->|No| C8[Store Insight]
+        C7 --> C8
+    end
+
+    A4 -.-> B1
+    A4 -.-> C1
+```
+
 ## Screenshot
 
 ![KGDreamInvest UI](kgdreaminvest.png)
 
-Prerequisites
-1) Python
-Python 3.10+ recommended
+## Prerequisites
 
-2) Ollama + a local model (required for “thinking/dreaming”)
-This app calls a local LLM via Ollama over HTTP (OLLAMA_HOST/api/chat).
-You must have:
-Ollama installed and running
-At least one model pulled (example: gpt-oss:20b)
-Environment variables set:
-OLLAMA_HOST (default: http://localhost:11434)
-DREAM_MODEL (example: gpt-oss:20b)
-Works best on a Mac with Apple Silicon (Metal) or any GPU-capable machine.
-CPU-only machines can run, but “dream/think” cycles will be slower. If needed, reduce loop speeds.
-Note: If the LLM call fails, the app falls back to a rule-based allocator.
-But the “multi-agent committee” output and KG labeling are best with Ollama available.
+1) **Python**
+   - Python 3.10+ recommended
 
-Install
+2) **Ollama + a local model** (required for "thinking/dreaming")
+   - This app calls a local LLM via Ollama over HTTP (OLLAMA_HOST/api/chat)
+   - You must have:
+     - Ollama installed and running
+     - At least one model pulled (example: gpt-oss:20b)
+     - Environment variables set:
+       - OLLAMA_HOST (default: http://localhost:11434)
+       - DREAM_MODEL (example: gpt-oss:20b)
+   - Works best on a Mac with Apple Silicon (Metal) or any GPU-capable machine
+   - CPU-only machines can run, but "dream/think" cycles will be slower. If needed, reduce loop speeds
+   - Note: If the LLM call fails, the app falls back to a rule-based allocator
+   - But the "multi-agent committee" output and KG labeling are best with Ollama available
+
+## Install
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-mkdir -p data
-
 DATA_DIR=./data \
-KGINVEST_DB=./data/kginvest_live.db \
+KGINVEST_DB=./kginvest_live.db \
 OLLAMA_HOST=http://localhost:11434 \
 DREAM_MODEL=gpt-oss:20b \
 PORT=5062 \
 AUTO_TRADE=0 \
 python3 kgdreaminvest.py
-Open:
+```
+
+## Open
 
 http://127.0.0.1:5062

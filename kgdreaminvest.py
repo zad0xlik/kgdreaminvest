@@ -68,7 +68,9 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = Path(os.environ.get("KGINVEST_DB", str(DATA_DIR / "kginvest_live.db")))
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
-DREAM_MODEL = os.environ.get("DREAM_MODEL", "gpt-oss:20b")
+# DREAM_MODEL = os.environ.get("DREAM_MODEL", "gpt-oss:20b")
+DREAM_MODEL = os.environ.get("DREAM_MODEL", "gemma3:4b")
+
 
 DEBUG = os.environ.get("KGINVEST_DEBUG", "").lower() in ("1", "true", "yes")
 
