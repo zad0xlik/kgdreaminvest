@@ -188,69 +188,242 @@ flowchart LR
 ## Install
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+# Install dependencies
 pip install -r requirements.txt
 
-DATA_DIR=./data \
-KGINVEST_DB=./kginvest_live.db \
-OLLAMA_HOST=http://localhost:11434 \
-DREAM_MODEL=gpt-oss:20b \
-PORT=5062 \
-AUTO_TRADE=0 \
-python3 kgdreaminvest.py
+# Or using uv (recommended)
+uv sync
+```
+
+## Running the Application
+
+### Quick Start
+
+```bash
+# Using uv (recommended)
+uv run python main.py
+
+# Or with standard Python
+python main.py
+```
+
+### Command-Line Options
+
+The `main.py` script supports the following command-line arguments:
+
+```bash
+uv run python main.py [OPTIONS]
+```
+
+**Options:**
+
+- `--host HOST` - Host to bind the server to (default: 127.0.0.1)
+- `--port PORT` - Port to run the server on (default: 5062)
+- `--debug` - Enable debug mode for verbose logging
+
+**Examples:**
+
+```bash
+# Run on default settings (localhost:5062)
+uv run python main.py
+
+# Run on custom port
+uv run python main.py --port 8080
+
+# Run accessible from other machines
+uv run python main.py --host 0.0.0.0 --port 5062
+
+# Run with debug logging
+uv run python main.py --debug
 ```
 
 ## Configuration
 
-### LLM Provider
+All configuration is done via the `.env` file. Copy `.env.example` to `.env` and customize:
+
+```bash
+cp .env.example .env
+```
+
+### LLM Provider Configuration
 
 KGDreamInvest supports both **Ollama** (local) and **OpenRouter** (cloud) for LLM inference.
 
-#### Option 1: Ollama (Default)
+#### Option 1: OpenRouter (Recommended)
+For cloud-based LLM inference with free models:
+
+**Edit `.env`:**
+```env
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=your-api-key-here
+DREAM_MODEL=kwaipilot/kat-coder-pro:free
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+Get your API key from: https://openrouter.ai/keys
+
+**Run:**
+```bash
+uv run python main.py
+```
+
+#### Option 2: Ollama (Local)
 For local LLM inference:
 
 ```bash
 # Install Ollama: https://ollama.com/download
 # Pull a model (example):
 ollama pull gemma3:4b
-
-# Run with Ollama
-LLM_PROVIDER=ollama \
-OLLAMA_HOST=http://localhost:11434 \
-DREAM_MODEL=gemma3:4b \
-python3 kgdreaminvest.py
 ```
 
-#### Option 2: OpenRouter (Recommended)
-For cloud-based LLM inference with the kwaipilot/kat-coder-pro:free model:
+**Edit `.env`:**
+```env
+LLM_PROVIDER=ollama
+OLLAMA_HOST=http://localhost:11434
+DREAM_MODEL=gemma3:4b
+```
 
+**Run:**
 ```bash
-# Get your API key from: https://openrouter.ai/keys
-# Set environment variables
-export LLM_PROVIDER=openrouter
-export OPENROUTER_API_KEY="your-api-key-here"
-export DREAM_MODEL="kwaipilot/kat-coder-pro:free"
-export OPENROUTER_BASE_URL="https://openrouter.ai/api/v1"
-
-# Run with OpenRouter
-python3 kgdreaminvest.py
+uv run python main.py
 ```
 
-### Environment Variables
+### Environment Variables Reference
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `LLM_PROVIDER` | LLM provider: "ollama" or "openrouter" | "ollama" |
-| `OLLAMA_HOST` | Ollama server URL | "http://localhost:11434" |
+| **LLM Configuration** | | |
+| `LLM_PROVIDER` | LLM provider: "ollama" or "openrouter" | `ollama` |
+| `OLLAMA_HOST` | Ollama server URL | `http://localhost:11434` |
 | `OPENROUTER_API_KEY` | OpenRouter API key | - |
-| `OPENROUTER_BASE_URL` | OpenRouter API base URL | "https://openrouter.ai/api/v1" |
-| `DREAM_MODEL` | LLM model name | "gemma3:4b" |
-| `KGINVEST_DB` | SQLite database path | "./kginvest_live.db" |
-| `DATA_DIR` | Data directory | "." |
-| `PORT` | Web UI port | 5062 |
-| `AUTO_TRADE` | Enable auto-trading | 0 (disabled) |
+| `OPENROUTER_BASE_URL` | OpenRouter API base URL | `https://openrouter.ai/api/v1` |
+| `DREAM_MODEL` | LLM model name | `gemma3:4b` |
+| `LLM_CALLS_PER_MIN` | Max LLM calls per minute | `20` |
+| `LLM_TIMEOUT` | LLM request timeout (seconds) | `45` |
+| `LLM_TEMP` | LLM temperature | `0.25` |
+| `LLM_MAX_REASK` | Max retry attempts for LLM | `1` |
+| **Database & Storage** | | |
+| `DATA_DIR` | Data directory path | `./data` |
+| `KGINVEST_DB` | SQLite database path | `data/kginvest_live.db` |
+| **Web UI** | | |
+| `HOST` | Server host | `127.0.0.1` |
+| `PORT` | Server port | `5062` |
+| **Trading Configuration** | | |
+| `START_CASH` | Initial paper trading cash | `500.0` |
+| `MIN_TRADE_NOTIONAL` | Minimum trade size | `25.0` |
+| `MAX_BUY_EQUITY_PCT_PER_CYCLE` | Max buy % per cycle | `18.0` |
+| `MAX_SELL_HOLDING_PCT_PER_CYCLE` | Max sell % per cycle | `35.0` |
+| `MAX_SYMBOL_WEIGHT_PCT` | Max position weight % | `14.0` |
+| `MIN_CASH_BUFFER_PCT` | Min cash buffer % | `12.0` |
+| `TRADE_ANYTIME` | Trade outside market hours | `0` (disabled) |
+| **Market Configuration** | | |
+| `MARKET_SPEED` | Market worker speed (ticks/min) | `0.35` |
+| `DREAM_SPEED` | Dream worker speed (ticks/min) | `0.25` |
+| `THINK_SPEED` | Think worker speed (ticks/min) | `0.20` |
+| `BELLWETHERS` | Comma-separated bellwether tickers | `^VIX,SPY,QQQ,TLT,UUP,^TNX,CL=F,TSM,VTI` |
+| `INVESTIBLES` | Comma-separated tradeable stock tickers | `XLE,XLF,XLV,XME,IYT,AAPL,MSFT,JPM,UNH,CAT,NVDA,AMD,AMZN,GOOGL,META,...` |
+| **Portfolio Expansion** | | |
+| `EXPANSION_ENABLED` | Enable LLM-powered portfolio expansion | `true` |
+| `EXPANSION_MAX_STOCKS` | Maximum stocks after expansion | `27` |
+| `EXPANSION_LLM_CALLS_PER_MIN` | LLM budget for expansion | `10` |
+| **Yahoo Finance** | | |
+| `YAHOO_TIMEOUT` | API timeout (seconds) | `12` |
+| `YAHOO_RANGE_DAYS` | Historical data range | `90` |
+| `YAHOO_CACHE_SECONDS` | Price cache duration | `90` |
+| **Autonomy Toggles** | | |
+| `AUTO_MARKET` | Auto-start market worker | `1` (enabled) |
+| `AUTO_DREAM` | Auto-start dream worker | `1` (enabled) |
+| `AUTO_THINK` | Auto-start think worker | `1` (enabled) |
+| `AUTO_TRADE` | Auto-execute trades | `1` (enabled) |
+| **Advanced** | | |
+| `STAR_THRESHOLD` | Insight starring threshold | `0.55` |
+| `EXPLANATION_MIN_LENGTH` | Min explanation length | `180` |
+| `KGINVEST_DEBUG` | Enable debug logging | `true` |
 
-## Open
+### Bellwether Configuration
 
-http://127.0.0.1:5062
+Bellwethers are market indicators used to generate regime signals. You can configure them in two ways:
+
+**1. Via `.env` file:**
+```env
+BELLWETHERS=^VIX,SPY,QQQ,TLT,UUP,^TNX,CL=F,TSM,VTI
+```
+
+**2. Via Web UI:**
+- Open the web interface
+- Expand "📡 Bellwethers Config" section in the right panel
+- Add, remove, or toggle bellwethers dynamically
+- Changes persist in the database
+
+### Investibles Configuration with LLM-Powered Expansion
+
+**NEW FEATURE**: Investibles are the tradeable stock tickers in your portfolio. The system includes **LLM-powered automatic portfolio expansion** using a 1→3→9→27 pattern.
+
+#### How It Works
+
+When you add a stock with auto-expansion enabled, the LLM:
+1. **Detects the sector** (using GICS classification)
+2. **Finds 3 similar stocks** in the same industry (Level 1)
+3. **For each similar stock**, finds 3 suppliers/customers/influencers (Level 2)
+4. Continues until reaching `EXPANSION_MAX_STOCKS` (default: 27)
+
+**Example Expansion Tree:**
+```
+AAPL (USER) → Technology
+  ├─ MSFT (SIMILAR) → Technology
+  │  ├─ CRM (DEPENDENT) → Software (customer)
+  │  ├─ AVGO (DEPENDENT) → Hardware (supplier)
+  │  └─ SAP (DEPENDENT) → Software (customer)
+  ├─ GOOGL (SIMILAR) → Technology  
+  │  ├─ TSM (DEPENDENT) → Semiconductors (supplier)
+  │  └─ QCOM (DEPENDENT) → Hardware (supplier)
+  └─ META (SIMILAR) → Communication Services
+```
+
+#### Configuration Options
+
+**1. Via `.env` file (Initial Setup):**
+```env
+# Base investibles list
+INVESTIBLES=XLE,XLF,XLV,XME,IYT,AAPL,MSFT,JPM,UNH,CAT,NVDA,AMD,AMZN,GOOGL,META
+
+# Expansion settings
+EXPANSION_ENABLED=true
+EXPANSION_MAX_STOCKS=27
+EXPANSION_LLM_CALLS_PER_MIN=10
+```
+
+**2. Via Web UI (Dynamic Management):**
+- Open the web interface  
+- Expand "🎯 Investibles Config" section in the right panel
+- **Add stocks** with optional auto-expansion
+- **View tree structure** with parent-child relationships
+- **Toggle stocks** on/off without deleting
+- **Color-coded levels**:
+  - 🟢 Green = USER (manually added)
+  - 🔵 Blue = SIMILAR (LLM-found peers)
+  - 🟣 Purple = DEPENDENT (LLM-found suppliers/customers)
+- **Monitor real-time expansion progress**
+- Changes persist in the database
+
+#### Expansion Timeline
+
+- **Instant**: Stock added to database
+- **~5-10 seconds**: Sector detection completes
+- **~2-5 minutes**: Full expansion to 27 stocks (depends on LLM speed)
+
+The expansion runs in a **background thread** and uses a **separate LLM budget** (`EXPANSION_LLM_CALLS_PER_MIN`) independent from the main worker budget.
+
+#### Disabling Expansion
+
+To add stocks **without** auto-expansion:
+- Uncheck "Auto-expand portfolio" in the UI before adding
+- Or set `EXPANSION_ENABLED=false` in `.env`
+
+## Accessing the Web UI
+
+Once running, open your browser to:
+
+**http://127.0.0.1:5062**
+
+(Or use the host/port you specified with `--host` and `--port`)

@@ -208,6 +208,27 @@ def init_db():
           change_pct REAL,
           volume INTEGER
         );
+
+        CREATE TABLE IF NOT EXISTS bellwethers (
+          ticker TEXT PRIMARY KEY,
+          name TEXT,
+          category TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS investibles (
+          ticker TEXT PRIMARY KEY,
+          name TEXT,
+          sector TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          added_by TEXT DEFAULT 'user',
+          parent_ticker TEXT,
+          expansion_level INTEGER DEFAULT 0,
+          notes TEXT
+        );
         """)
         
         # Seed initial cash if not present
@@ -219,6 +240,165 @@ def init_db():
             )
         
         conn.commit()
+
+
+# ---------------------- Bellwether Helper Functions ----------------------
+
+def get_active_bellwethers() -> list:
+    """
+    Get list of active bellwether tickers from database.
+    Falls back to Config.BELLWETHERS if database is empty.
+    
+    Returns:
+        List of ticker symbols for enabled bellwethers
+    """
+    with db_conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker FROM bellwethers WHERE enabled=1 ORDER BY ticker"
+        ).fetchall()
+        
+        if rows:
+            return [row["ticker"] for row in rows]
+        
+        # Fallback to config if database not yet populated
+        return Config.BELLWETHERS
+
+
+def bootstrap_bellwethers():
+    """
+    Bootstrap bellwethers table from Config if empty.
+    
+    Categorizes bellwethers based on ticker patterns:
+    - ^VIX: volatility
+    - SPY, QQQ, VTI: equity
+    - TLT: bonds
+    - UUP: forex
+    - CL=F: commodities
+    - ^TNX: rates
+    - TSM: semiconductors
+    """
+    with db_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) AS c FROM bellwethers").fetchone()["c"]
+        if count:
+            return  # Already populated
+        
+        logger.info("Bootstrapping bellwethers from config…")
+        
+        # Categorization map
+        categories = {
+            "^VIX": "volatility",
+            "SPY": "equity",
+            "QQQ": "equity",
+            "VTI": "equity",
+            "TLT": "bonds",
+            "UUP": "forex",
+            "CL=F": "commodities",
+            "^TNX": "rates",
+            "TSM": "semiconductors",
+        }
+        
+        for ticker in Config.BELLWETHERS:
+            category = categories.get(ticker, "other")
+            name = ticker  # Could expand with full names if needed
+            
+            conn.execute(
+                "INSERT OR IGNORE INTO bellwethers(ticker, name, category, enabled, added_at) "
+                "VALUES(?,?,?,1,?)",
+                (ticker, name, category, utc_now())
+            )
+        
+        conn.commit()
+        logger.info(f"Bootstrapped {len(Config.BELLWETHERS)} bellwethers")
+
+
+# ---------------------- Investible Helper Functions ----------------------
+
+def get_active_investibles() -> list:
+    """
+    Get list of active investible tickers from database.
+    Falls back to Config.INVESTIBLES if database is empty.
+    
+    Returns:
+        List of ticker symbols for enabled investibles
+    """
+    with db_conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker FROM investibles WHERE enabled=1 ORDER BY ticker"
+        ).fetchall()
+        
+        if rows:
+            return [row["ticker"] for row in rows]
+        
+        # Fallback to config if database not yet populated
+        return Config.INVESTIBLES
+
+
+def bootstrap_investibles():
+    """
+    Bootstrap investibles table from Config if empty.
+    
+    Adds all investibles from Config.INVESTIBLES with:
+    - expansion_level=0 (user-added)
+    - added_by='config'
+    - enabled=1
+    """
+    with db_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) AS c FROM investibles").fetchone()["c"]
+        if count:
+            return  # Already populated
+        
+        logger.info("Bootstrapping investibles from config…")
+        
+        for ticker in Config.INVESTIBLES:
+            conn.execute(
+                "INSERT OR IGNORE INTO investibles(ticker, name, sector, enabled, "
+                "added_at, added_by, parent_ticker, expansion_level) "
+                "VALUES(?,?,?,1,?,?,NULL,0)",
+                (ticker, ticker, None, utc_now(), 'config')
+            )
+        
+        conn.commit()
+        logger.info(f"Bootstrapped {len(Config.INVESTIBLES)} investibles")
+
+
+def get_investible_tree() -> Dict[str, List[Dict]]:
+    """
+    Get investible hierarchy for tree view display.
+    
+    Returns:
+        Dict mapping parent_ticker to list of children:
+        {
+            None: [user-added stocks without expansion],
+            "AAPL": [stocks expanded from AAPL],
+            ...
+        }
+    """
+    with db_conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, sector, enabled, added_at, added_by, "
+            "parent_ticker, expansion_level, notes "
+            "FROM investibles ORDER BY expansion_level, ticker"
+        ).fetchall()
+        
+        tree: Dict[str, List[Dict]] = {}
+        
+        for row in rows:
+            parent = row["parent_ticker"]
+            if parent not in tree:
+                tree[parent] = []
+            
+            tree[parent].append({
+                "ticker": row["ticker"],
+                "name": row["name"],
+                "sector": row["sector"],
+                "enabled": bool(row["enabled"]),
+                "added_at": row["added_at"],
+                "added_by": row["added_by"],
+                "expansion_level": row["expansion_level"],
+                "notes": row["notes"],
+            })
+        
+        return tree
 
 
 # ---------------------- Bootstrap Functions ----------------------

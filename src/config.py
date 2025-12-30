@@ -37,21 +37,14 @@ class Config:
     # Debug mode
     DEBUG = os.environ.get("KGINVEST_DEBUG", "").lower() in ("1", "true", "yes")
     
-    # Universe
-    INVESTIBLES = [
-        "XLE", "XLF", "XLV", "XME", "IYT",
-        "AAPL", "MSFT", "JPM", "UNH", "CAT",
-        "NVDA", "AMD", "AMZN", "GOOGL", "META",
-        "ARCB", "TTMI", "TRMK", "KWR", "ICUI",
-        "ACHR", "BBAI", "ASTS", "JOBY", "LUNR",
-        "OKLO", "LAC", "INTC", "APLD", "F",
-        "PSNY", "PSFE", "U", "LCID", "SMR",
-        "WOLF", "BYND", "AIG"
-    ]
+    # Load investibles from environment or use default
+    _investibles_default = "XLE,XLF,XLV,XME,IYT,AAPL,MSFT,JPM,UNH,CAT,NVDA,AMD,AMZN,GOOGL,META,ARCB,TTMI,TRMK,KWR,ICUI,ACHR,BBAI,ASTS,JOBY,LUNR,OKLO,LAC,INTC,APLD,F,PSNY,PSFE,U,LCID,SMR,WOLF,BYND,AIG"
+    _investibles_env = os.environ.get("INVESTIBLES", _investibles_default)
+    INVESTIBLES = [ticker.strip().upper() for ticker in _investibles_env.split(",") if ticker.strip()]
    
-    BELLWETHERS = [
-        "SPY", "QQQ", "TLT", "^VIX", "UUP", "CL=F", "^TNX", "TSM", "VTI"
-    ]
+    # Load bellwethers from environment or use default
+    _bellwethers_env = os.environ.get("BELLWETHERS", "^VIX,SPY,QQQ,TLT,UUP,^TNX,CL=F,TSM,VTI")
+    BELLWETHERS = [ticker.strip().upper() for ticker in _bellwethers_env.split(",") if ticker.strip()]
     
     ALL_TICKERS = sorted(set(INVESTIBLES + BELLWETHERS))
     

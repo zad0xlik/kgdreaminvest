@@ -40,6 +40,17 @@
 - **Fallback Logic**: Rule-based decisions when LLM unavailable
 - **JSON Parsing**: Robust response extraction with re-ask capability
 
+### ✅ LLM-Powered Portfolio Expansion (NEW - Dec 29, 2025)
+- **Intelligent Stock Discovery**: LLM finds similar stocks and supply chain dependents
+- **1→3→9→27 Pattern**: Hierarchical expansion with configurable max stocks
+- **Sector Detection**: Automatic GICS sector classification
+- **Tree Structure**: Parent-child relationships tracked in database
+- **Separate Budget**: Independent ExpansionBudget class (10 calls/min)
+- **Background Processing**: Non-blocking expansion in separate thread
+- **Real-time UI**: Tree view with color-coded levels and progress monitoring
+- **Full CRUD API**: 8 RESTful endpoints for investibles management
+- **Dynamic Configuration**: Add/remove/toggle stocks via Web UI
+
 ### ✅ Modern Development Setup
 - **Package Management**: uv with pyproject.toml configuration
 - **Code Quality**: Black, Ruff, MyPy tooling configured

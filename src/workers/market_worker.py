@@ -6,7 +6,7 @@ import traceback
 from typing import Optional
 
 from src.config import Config
-from src.database import db_conn, log_event
+from src.database import db_conn, log_event, get_active_investibles, get_active_bellwethers
 from src.market import last_close_many, compute_indicators, compute_signals_from_bells
 from src.utils import utc_now, jitter_sleep
 
@@ -72,14 +72,19 @@ class MarketWorker:
 
     def step_once(self):
         """Execute one market data fetch cycle."""
+        # Get enabled tickers from database (fallback to config)
+        investibles = get_active_investibles()
+        bellwethers = get_active_bellwethers()
+        all_tickers = list(set(investibles + bellwethers))
+        
         # Fetch all ticker prices
-        prices = last_close_many(Config.ALL_TICKERS, max_workers=min(10, len(Config.ALL_TICKERS)))
+        prices = last_close_many(all_tickers, max_workers=min(10, len(all_tickers)))
         if not prices:
             raise RuntimeError("Yahoo fetch returned no prices")
 
-        # Compute indicators for investibles
+        # Compute indicators for enabled investibles only
         indicators = {}
-        for t in Config.INVESTIBLES:
+        for t in investibles:
             p = prices.get(t)
             if not p:
                 continue
@@ -87,9 +92,9 @@ class MarketWorker:
             indicators[t] = compute_indicators(closes)
 
         # Extract bellwether prices
-        bells = {b: prices[b] for b in Config.BELLWETHERS if b in prices}
+        bells = {b: prices[b] for b in bellwethers if b in prices}
         
-        # Compute regime signals
+        # Compute regime signals (function handles missing tickers gracefully)
         signals = compute_signals_from_bells(prices)
 
         # Store snapshot and log ticker lookups

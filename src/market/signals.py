@@ -1,10 +1,13 @@
 """Market regime signals derived from bellwether indicators."""
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 from src.utils import clamp01
 
 
-def compute_signals_from_bells(prices: Dict[str, Dict[str, Any]]) -> Dict[str, float]:
+def compute_signals_from_bells(
+    prices: Dict[str, Dict[str, Any]], 
+    bellwethers: Optional[List[str]] = None
+) -> Dict[str, float]:
     """
     Derive simple, explainable market regime signals from bellwethers.
     
@@ -16,6 +19,8 @@ def compute_signals_from_bells(prices: Dict[str, Dict[str, Any]]) -> Dict[str, f
     
     Args:
         prices: Dict mapping ticker to price data with 'change_pct' key
+        bellwethers: Optional list of bellwether tickers to use. If None,
+                     uses all available bellwethers from prices.
         
     Returns:
         Dict with signal names to 0-1 float values
@@ -28,12 +33,16 @@ def compute_signals_from_bells(prices: Dict[str, Dict[str, Any]]) -> Dict[str, f
         ... }
         >>> signals = compute_signals_from_bells(prices)
         >>> print(f"Risk-off: {signals['risk_off']:.2f}")
+        
+    Note:
+        Signal formulas are resilient to missing tickers. If a bellwether
+        is not available in prices, its contribution defaults to 0.0 (neutral).
     """
     def ch(sym: str) -> float:
         """Helper to get change_pct safely."""
         return float(prices.get(sym, {}).get("change_pct", 0.0) or 0.0)
 
-    # Get bellwether changes
+    # Get bellwether changes (gracefully handle missing tickers)
     vix = ch("^VIX")
     spy = ch("SPY")
     qqq = ch("QQQ")

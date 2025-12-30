@@ -21,6 +21,11 @@ from src.database.operations import (
 from src.database.schema import (
     init_db,
     bootstrap_if_empty,
+    bootstrap_bellwethers,
+    get_active_bellwethers,
+    bootstrap_investibles,
+    get_active_investibles,
+    get_investible_tree,
     edge_weight_top,
     CHANNEL_WEIGHTS,
     DERIVED,
@@ -46,6 +51,11 @@ __all__ = [
     # Schema
     "init_db",
     "bootstrap_if_empty",
+    "bootstrap_bellwethers",
+    "get_active_bellwethers",
+    "bootstrap_investibles",
+    "get_active_investibles",
+    "get_investible_tree",
     "edge_weight_top",
     "CHANNEL_WEIGHTS",
     "DERIVED",

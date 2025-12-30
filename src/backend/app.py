@@ -15,7 +15,7 @@ def create_app():
     app.secret_key = Config.SECRET_KEY
     
     # Register blueprints
-    from src.backend.routes import main, graph, api, workers, insights, stats
+    from src.backend.routes import main, graph, api, workers, insights, stats, bellwethers, investibles
     
     app.register_blueprint(main.bp)
     app.register_blueprint(graph.bp)
@@ -23,5 +23,7 @@ def create_app():
     app.register_blueprint(workers.bp)
     app.register_blueprint(insights.bp)
     app.register_blueprint(stats.bp)
+    app.register_blueprint(bellwethers.bp)
+    app.register_blueprint(investibles.bp)
     
     return app

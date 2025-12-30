@@ -3,7 +3,46 @@
 ## Current Focus (December 2025)
 
 ### Primary Objective
-Successfully implement OpenRouter integration with kwaipilot/kat-coder-pro:free model while maintaining system stability and resolving configuration issues.
+**COMPLETED**: Successfully implemented LLM-powered investibles expansion system with full UI integration.
+
+### Latest Major Feature (December 29, 2025)
+
+#### LLM-Powered Portfolio Expansion (COMPLETED)
+A complete system for dynamically expanding the trading portfolio using AI-driven stock discovery:
+
+**What Was Built:**
+1. **Separate LLM Budget**: ExpansionBudget class for independent LLM call tracking
+2. **Database Schema**: investibles table with parent_ticker, expansion_level, sector tracking
+3. **Full CRUD API**: 8 RESTful endpoints for investibles management
+4. **Three LLM Functions**:
+   - `llm_detect_sector()` - Auto-detects GICS sectors
+   - `llm_find_similar()` - Finds industry peers
+   - `llm_find_dependents()` - Finds suppliers/customers/influencers
+5. **Expansion Algorithm**: Background thread implementing 1→3→9→27 pattern
+6. **Beautiful UI**: Complete tree view with color-coded levels and real-time progress
+
+**How It Works:**
+- User adds stock (e.g., AAPL) with "Auto-expand" checkbox
+- LLM detects sector (Technology)
+- LLM finds 3 similar stocks (MSFT, GOOGL, META) - Level 1
+- For each Level 1 stock, LLM finds 3 dependents - Level 2
+- Continues until EXPANSION_MAX_STOCKS reached (default: 27)
+- All happens in background with real-time progress display
+
+**Technical Implementation:**
+- Separate expansion budget (10 calls/min) independent from worker budget
+- JSON serialization bug fixed (None key → "null" string)
+- Market worker now uses `get_active_investibles()` from database
+- Tree structure with parent-child relationships
+- Enable/disable stocks without deleting
+
+**Configuration:**
+```env
+INVESTIBLES=XLE,XLF,XLV,XME,IYT,AAPL,MSFT,JPM,UNH,CAT,NVDA,AMD,AMZN,GOOGL,META,...
+EXPANSION_ENABLED=true
+EXPANSION_MAX_STOCKS=27
+EXPANSION_LLM_CALLS_PER_MIN=10
+```
 
 ### Recent Major Changes
 

@@ -3,7 +3,7 @@
 import json
 from flask import Blueprint, jsonify
 
-from src.database import db_conn, init_db, bootstrap_if_empty
+from src.database import db_conn, init_db, bootstrap_if_empty, bootstrap_bellwethers
 from src.database.operations import portfolio_state
 from src.llm.budget import LLM_BUDGET
 from src.backend.services import fmt_money
@@ -18,6 +18,7 @@ def state():
     """Return full system state for UI updates."""
     init_db()
     bootstrap_if_empty()
+    bootstrap_bellwethers()
     
     with db_conn() as conn:
         node_count = conn.execute("SELECT COUNT(*) AS c FROM nodes").fetchone()["c"]
