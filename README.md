@@ -157,18 +157,29 @@ flowchart LR
 1) **Python**
    - Python 3.10+ recommended
 
-2) **Ollama + a local model** (required for "thinking/dreaming")
-   - This app calls a local LLM via Ollama over HTTP (OLLAMA_HOST/api/chat)
+2) **LLM Provider** (required for "thinking/dreaming")
+   
+   Choose one of the following:
+   
+   **Option A: OpenRouter** (Recommended - No setup required)
+   - Cloud-based LLM inference
+   - Get a free API key from [openrouter.ai](https://openrouter.ai/keys)
+   - Use free models like `kwaipilot/kat-coder-pro:free`
+   - No local installation needed
+   - Works on any machine with internet connection
+   
+   **Option B: Ollama** (Local - Privacy-focused)
+   - Local LLM inference via Ollama over HTTP
    - You must have:
-     - Ollama installed and running
-     - At least one model pulled (example: gpt-oss:20b)
+     - Ollama installed and running ([ollama.com](https://ollama.com/download))
+     - At least one model pulled (example: `gemma3:4b`, `llama3.2:latest`)
      - Environment variables set:
        - OLLAMA_HOST (default: http://localhost:11434)
-       - DREAM_MODEL (example: gpt-oss:20b)
-   - Works best on a Mac with Apple Silicon (Metal) or any GPU-capable machine
-   - CPU-only machines can run, but "dream/think" cycles will be slower. If needed, reduce loop speeds
-   - Note: If the LLM call fails, the app falls back to a rule-based allocator
-   - But the "multi-agent committee" output and KG labeling are best with Ollama available
+       - DREAM_MODEL (example: gemma3:4b)
+   - Works best on Mac with Apple Silicon (Metal) or GPU-capable machine
+   - CPU-only machines can run but will be slower
+   
+   **Fallback**: If LLM calls fail, the app falls back to a rule-based allocator, but the "multi-agent committee" output and KG labeling work best with LLM available.
 
 ## Install
 
