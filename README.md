@@ -181,6 +181,10 @@ flowchart LR
    
    **Fallback**: If LLM calls fail, the app falls back to a rule-based allocator, but the "multi-agent committee" output and KG labeling work best with LLM available.
 
+3) **Model Recommendations**
+   - **OpenRouter (Cloud)**: `kwaipilot/kat-coder-pro:free` (recommended for getting started)
+   - **Ollama (Local)**: `gemma3:4b`, `llama3.2:latest`, or `qwen2:latest`
+
 ## Install
 
 ```bash
@@ -246,19 +250,6 @@ python3 kgdreaminvest.py
 | `DATA_DIR` | Data directory | "." |
 | `PORT` | Web UI port | 5062 |
 | `AUTO_TRADE` | Enable auto-trading | 0 (disabled) |
-
-### Model Recommendations
-
-- **OpenRouter Free Tier**: `kwaipilot/kat-coder-pro:free` (recommended)
-- **Ollama Local**: `gemma3:4b`, `llama3.2:latest`, or `qwen2:latest`
-
-### Prerequisites
-
-1. **Python 3.10+**
-2. **LLM Provider**:
-   - Ollama (local): Install from [ollama.com](https://ollama.com/download)
-   - OpenRouter (cloud): Sign up at [openrouter.ai](https://openrouter.ai)
-3. **Optional**: Virtual environment (recommended)
 
 ## Open
 
