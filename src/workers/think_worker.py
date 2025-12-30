@@ -29,6 +29,7 @@ from src.database import (
     recent_trade_summary
 )
 from src.llm import llm_chat_json
+from src.llm.prompts import get_prompt, format_prompt
 from src.portfolio import execute_paper_trades
 from src.utils import clamp01, fmt_money, market_is_open_et, utc_now, jitter_sleep
 
@@ -385,70 +386,27 @@ class ThinkWorker:
             mv = qty * px
             pos_lines.append(f"- {sym}: {qty:.4f} sh (~{fmt_money(mv)})")
 
-        system = (
-            "You are a cautious, data-driven paper-trading allocator. "
-            "You are a committee of agents (Macro, Technical, Risk, Allocator). "
-            "You must output ONLY one valid JSON object.\n\n"
-            "CRITICAL REQUIREMENTS:\n"
-            "- Your explanation MUST be at least 180 characters long\n"
-            "- Your explanation MUST include these keywords: because, however, therefore, driven, while, but, risk\n"
-            "- Provide detailed reasoning for each BUY/SELL decision\n"
-            "- Explain the risk considerations and trade-offs\n"
-            "- Use clear, professional language\n\n"
-            "Rules:\n"
-            "- No leverage. No shorting.\n"
-            "- Keep total BUY allocation modest; prefer incremental changes.\n"
-            "- Suggest SELLs when reallocating (free cash), and explain why.\n"
-            "- Be diversified; avoid concentrating into one theme.\n"
-            "- Output decisions for the investible universe only.\n"
-        )
-
-        user = f"""
-LATEST BELLWETHERS (1d):
-{chr(10).join(bell_lines) if bell_lines else "(missing)"}
-
-DERIVED SIGNALS (0-1):
-{json.dumps(signals)}
-
-INVESTIBLES SNAPSHOT:
-{chr(10).join(inv_lines) if inv_lines else "(missing)"}
-
-PORTFOLIO:
-- Cash: {fmt_money(float(pf.get('cash',0)))}
-- Equity est: {fmt_money(float(pf.get('equity',0)))}
-- Positions:
-{chr(10).join(pos_lines) if pos_lines else "- None"}
-
-RECENT TRADES:
-{trade_hist}
-
-GUARDRAILS:
-- MIN_CASH_BUFFER_PCT={MIN_CASH_BUFFER_PCT}
-- MAX_BUY_EQUITY_PCT_PER_CYCLE={MAX_BUY_EQUITY_PCT_PER_CYCLE}
-- MAX_SELL_HOLDING_PCT_PER_CYCLE={MAX_SELL_HOLDING_PCT_PER_CYCLE}
-- MAX_SYMBOL_WEIGHT_PCT={MAX_SYMBOL_WEIGHT_PCT}
-
-TASK:
-Return ONLY JSON:
-{{
-  "agents": {{
-    "macro": {{"regime":"...", "bullets":["..."], "risk_off":0-1}},
-    "technical": {{"top":["TICK","..."], "bottom":["TICK","..."], "bullets":["..."]}},
-    "risk": {{"cash_buffer_pct": number, "trim":["TICK","..."], "bullets":["..."]}},
-    "allocator": {{"bullets":["..."]}}
-  }},
-  "decisions": [
-    {{"ticker":"AAPL","action":"BUY|SELL|HOLD","allocation_pct":0-80,"note":"short reason"}}
-  ],
-  "explanation": "4-8 sentences plain English, explicitly mention what to SELL (if any) and what you redeploy into.",
-  "confidence": 0-1
-}}
-
-Notes:
-- allocation_pct means: for BUY = % of equity to spend; for SELL = % of that holding to sell.
-- Keep BUY sizes small unless confidence is high and risk_off is low.
-- Include an entry for every investible ticker (use HOLD for most).
-""".strip()
+        # Load prompts from file
+        prompt_config = get_prompt("think", "multi_agent_committee", force_reload=False)
+        if prompt_config:
+            system = prompt_config["system"]
+            user = format_prompt(
+                prompt_config["user_template"],
+                bellwether_lines=chr(10).join(bell_lines) if bell_lines else "(missing)",
+                signals_json=json.dumps(signals),
+                investible_lines=chr(10).join(inv_lines) if inv_lines else "(missing)",
+                cash=fmt_money(float(pf.get('cash',0))),
+                equity=fmt_money(float(pf.get('equity',0))),
+                position_lines=chr(10).join(pos_lines) if pos_lines else "- None",
+                trade_history=trade_hist,
+                min_cash_buffer=MIN_CASH_BUFFER_PCT,
+                max_buy_equity=MAX_BUY_EQUITY_PCT_PER_CYCLE,
+                max_sell_holding=MAX_SELL_HOLDING_PCT_PER_CYCLE,
+                max_symbol_weight=MAX_SYMBOL_WEIGHT_PCT
+            )
+        else:
+            logger.error("Failed to load multi_agent_committee prompt - using fallback")
+            return rule_based_fallback(prices, indicators, signals)
 
         parsed, _raw = llm_chat_json(system, user)
         if not parsed:

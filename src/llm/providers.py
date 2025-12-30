@@ -151,7 +151,7 @@ def openrouter_chat_json(
             openai_api_base=Config.OPENROUTER_BASE_URL,
             openai_api_key=Config.OPENROUTER_API_KEY,
             temperature=Config.LLM_TEMP,
-            max_tokens=1000,
+            max_tokens=Config.LLM_MAX_TOKENS,
             timeout=Config.LLM_TIMEOUT,
             default_headers={
                 "HTTP-Referer": "https://github.com/DormantOne/kgdreaminvest",
@@ -170,6 +170,9 @@ def openrouter_chat_json(
         raw = response.content if hasattr(response, 'content') else str(response)
         logger.debug(f"openrouter_chat_json: received {len(raw)} chars response")
         logger.debug(f"openrouter_chat_json: raw response preview: {raw[:300]}...")
+        # DIAGNOSTIC: Log full response when it's the think committee call
+        if "agents" in raw[:500]:
+            logger.debug(f"openrouter_chat_json: FULL RAW RESPONSE:\n{raw}")
         
         # Try to extract JSON
         parsed = extract_json(raw)

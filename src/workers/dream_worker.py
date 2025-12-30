@@ -10,6 +10,7 @@ from src.config import Config
 from src.database import db_conn, log_event, ensure_edge_id, edge_weight_top
 from src.knowledge_graph import corr
 from src.llm import llm_chat_json
+from src.llm.prompts import get_prompt, format_prompt
 from src.utils import utc_now, jitter_sleep
 
 logger = logging.getLogger("kginvest")
@@ -103,30 +104,21 @@ class DreamWorker:
             note = f"corr={c:+.2f} (heuristic)"
             
             if use_llm:
-                prompt = f"""
-You are labeling a relationship in an investing knowledge graph.
-
-NODE A: {inv} (investible)
-NODE B: {bw} (bellwether)
-
-Observed return-correlation over recent days: {c:+.2f}
-
-Choose 0-3 channels and strengths (>=0.10). Allowed channels:
-correlates, inverse_correlates, drives, results_from, leads, lags, hedges, policy_exposed,
-supply_chain_linked, liquidity_coupled, sentiment_coupled, narrative_supports, narrative_contradicts.
-
-Directional channels must be encoded as "<base>:A->B" or "<base>:B->A" where A and B are node IDs.
-
-Return ONLY JSON:
-{{
-  "channels": {{ "correlates": 0.0-1.0, "drives:{inv}->{bw}": 0.0-1.0 }},
-  "note": "one sentence"
-}}
-""".strip()
-                
-                system = "You are a careful KG edge adjudicator. Output valid JSON only."
-                parsed, _raw = llm_chat_json(system, prompt)
-                
+                # Load prompts from file
+                prompt_config = get_prompt("dream", "edge_relationship", force_reload=False)
+                if prompt_config:
+                    system = prompt_config["system"]
+                    user_prompt = format_prompt(
+                        prompt_config["user_template"],
+                        node_a=inv,
+                        node_b=bw,
+                        correlation=c
+                    )
+                    parsed, _raw = llm_chat_json(system, user_prompt)
+                else:
+                    logger.warning("Failed to load edge_relationship prompt")
+                    parsed = None
+                    _raw = None
                 if parsed and isinstance(parsed.get("channels"), dict):
                     clean: Dict[str, float] = {}
                     for k, v in parsed["channels"].items():

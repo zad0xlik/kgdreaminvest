@@ -11,6 +11,7 @@ from src.config import Config
 from src.database import db_conn, bootstrap_investibles, get_investible_tree
 from src.llm.expansion_budget import ExpansionBudget
 from src.llm.interface import llm_chat_json
+from src.llm.prompts import get_prompt, format_prompt
 from src.utils import utc_now
 
 logger = logging.getLogger("kginvest")
@@ -49,17 +50,14 @@ def llm_detect_sector(ticker: str) -> Tuple[Optional[str], Optional[str]]:
         logger.warning(f"Expansion budget exhausted, cannot detect sector for {ticker}")
         return None, None
     
-    system_prompt = """You are a financial analyst. Analyze stock tickers and classify them into sectors.
-Use standard GICS sectors: Technology, Healthcare, Financials, Energy, Industrials, 
-Consumer Discretionary, Consumer Staples, Materials, Real Estate, Utilities, Communication Services.
-Return ONLY valid JSON."""
+    # Load prompts from file
+    prompt_config = get_prompt("expansion", "sector_detection", force_reload=False)
+    if not prompt_config:
+        logger.error("Failed to load sector_detection prompt")
+        return None, None
     
-    user_prompt = f"""Analyze the stock ticker {ticker}.
-Return JSON format:
-{{
-  "sector": "Technology",
-  "subsector": "Software"
-}}"""
+    system_prompt = prompt_config["system"]
+    user_prompt = format_prompt(prompt_config["user_template"], ticker=ticker)
     
     try:
         parsed, raw = llm_chat_json(system_prompt, user_prompt)
@@ -92,18 +90,14 @@ def llm_find_similar(ticker: str, count: int = 3) -> List[Dict]:
         logger.warning(f"Expansion budget timeout, cannot find similar stocks for {ticker}")
         return []
     
-    system_prompt = """You are a financial analyst. Find similar publicly traded stocks.
-Focus on direct competitors and peers with strong market positions.
-Return ONLY valid JSON with ticker symbols."""
+    # Load prompts from file
+    prompt_config = get_prompt("expansion", "find_similar", force_reload=False)
+    if not prompt_config:
+        logger.error("Failed to load find_similar prompt")
+        return []
     
-    user_prompt = f"""Find {count} publicly traded stocks similar to {ticker} in the same industry/sector.
-Return JSON format:
-{{
-  "similar_stocks": [
-    {{"ticker": "MSFT", "name": "Microsoft Corp", "reason": "Cloud computing competitor"}},
-    {{"ticker": "GOOGL", "name": "Alphabet Inc", "reason": "Tech giant peer"}}
-  ]
-}}"""
+    system_prompt = prompt_config["system"]
+    user_prompt = format_prompt(prompt_config["user_template"], ticker=ticker, count=count)
     
     try:
         parsed, raw = llm_chat_json(system_prompt, user_prompt)
@@ -135,22 +129,14 @@ def llm_find_dependents(ticker: str, count: int = 3) -> List[Dict]:
         logger.warning(f"Expansion budget timeout, cannot find dependents for {ticker}")
         return []
     
-    system_prompt = """You are a supply chain analyst. Find publicly traded companies 
-that are suppliers, customers, or influencers of a given stock.
-Return ONLY valid JSON with ticker symbols."""
+    # Load prompts from file
+    prompt_config = get_prompt("expansion", "find_dependents", force_reload=False)
+    if not prompt_config:
+        logger.error("Failed to load find_dependents prompt")
+        return []
     
-    user_prompt = f"""For {ticker}, find {count} publicly traded companies that are:
-- Major suppliers (provide components/materials)
-- Key customers (major revenue source)
-- Industry influencers (affect via regulation/innovation)
-
-Return JSON format:
-{{
-  "dependents": [
-    {{"ticker": "AVGO", "name": "Broadcom Inc", "relationship": "supplier"}},
-    {{"ticker": "QCOM", "name": "Qualcomm Inc", "relationship": "supplier"}}
-  ]
-}}"""
+    system_prompt = prompt_config["system"]
+    user_prompt = format_prompt(prompt_config["user_template"], ticker=ticker, count=count)
     
     try:
         parsed, raw = llm_chat_json(system_prompt, user_prompt)

@@ -62,6 +62,7 @@ class Config:
     LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "45"))
     LLM_TEMP = float(os.environ.get("LLM_TEMP", "0.25"))
     LLM_MAX_REASK = int(os.environ.get("LLM_MAX_REASK", "1"))
+    LLM_MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "4000"))
     
     # Autonomy toggles
     AUTO_MARKET = os.environ.get("AUTO_MARKET", "1").lower() in ("1", "true", "yes")
@@ -110,6 +111,7 @@ LLM_CALLS_PER_MIN = Config.LLM_CALLS_PER_MIN
 LLM_TIMEOUT = Config.LLM_TIMEOUT
 LLM_TEMP = Config.LLM_TEMP
 LLM_MAX_REASK = Config.LLM_MAX_REASK
+LLM_MAX_TOKENS = Config.LLM_MAX_TOKENS
 
 # Universe
 INVESTIBLES = Config.INVESTIBLES

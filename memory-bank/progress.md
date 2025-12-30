@@ -39,6 +39,11 @@
 - **Rate Limiting**: Configurable calls per minute (10/min default)
 - **Fallback Logic**: Rule-based decisions when LLM unavailable
 - **JSON Parsing**: Robust response extraction with re-ask capability
+- **Token Limit Fix** (Dec 29, 2025): Increased from 1000 to 4000 tokens
+  - Resolved critical bug causing agents to produce zero-allocation plans
+  - LLM responses were truncating mid-JSON (missing decisions, explanation, confidence)
+  - Now generates complete responses with real BUY/SELL decisions
+  - Configurable via `LLM_MAX_TOKENS` environment variable
 
 ### ✅ LLM-Powered Portfolio Expansion (NEW - Dec 29, 2025)
 - **Intelligent Stock Discovery**: LLM finds similar stocks and supply chain dependents
@@ -61,10 +66,10 @@
 ## What's Left to Build
 
 ### 🔄 Immediate Fixes Needed
-1. **LLM Response Parsing**: kat-coder-pro model parse_fail errors
-   - Need to capture and analyze raw model responses
-   - May require JSON extraction logic improvements
-   - Different models may return varied response formats
+1. ~~**LLM Response Parsing**: kat-coder-pro model parse_fail errors~~ **RESOLVED**
+   - ✅ Fixed by increasing `max_tokens` from 1000 to 4000
+   - ✅ Responses now complete with all required fields
+   - ✅ Made configurable via `LLM_MAX_TOKENS` environment variable
 
 2. **Provider Verification**: Confirm OpenRouter vs Ollama routing
    - Add logging to verify which endpoint is being called
@@ -136,10 +141,10 @@
 ## Current Issues & Known Problems
 
 ### 🐛 Active Bugs
-1. **LLM Parse Errors**: kat-coder-pro model returning unparseable responses
-   - **Impact**: High - prevents LLM decision making
-   - **Workaround**: Rule-based fallback active
-   - **Status**: Under investigation
+1. ~~**LLM Parse Errors**: kat-coder-pro model returning unparseable responses~~ **RESOLVED**
+   - **Root Cause**: Token limit too low (1000 tokens)
+   - **Fix**: Increased to 4000 tokens, made configurable
+   - **Status**: Fixed - agents now generate real trading plans
 
 2. **Configuration Loading**: Need verification that OpenRouter is being used
    - **Impact**: Medium - may be using wrong LLM provider

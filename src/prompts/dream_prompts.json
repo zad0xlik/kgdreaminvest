@@ -1,0 +1,7 @@
+{
+  "edge_relationship": {
+    "description": "Labels knowledge graph edge relationships between investibles and bellwethers with directional channels",
+    "system": "You are a careful KG edge adjudicator. Output valid JSON only.",
+    "user_template": "You are labeling a relationship in an investing knowledge graph.\n\nNODE A: {node_a} (investible)\nNODE B: {node_b} (bellwether)\n\nObserved return-correlation over recent days: {correlation:+.2f}\n\nChoose 0-3 channels and strengths (>=0.10). Allowed channels:\ncorrelates, inverse_correlates, drives, results_from, leads, lags, hedges, policy_exposed,\nsupply_chain_linked, liquidity_coupled, sentiment_coupled, narrative_supports, narrative_contradicts.\n\nDirectional channels must be encoded as \"<base>:A->B\" or \"<base>:B->A\" where A and B are node IDs.\n\nReturn ONLY JSON:\n{{\n  \"channels\": {{ \"correlates\": 0.0-1.0, \"drives:{node_a}->{node_b}\": 0.0-1.0 }},\n  \"note\": \"one sentence\"\n}}"
+  }
+}

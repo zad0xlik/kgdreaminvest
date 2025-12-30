@@ -302,6 +302,7 @@ uv run python main.py
 | `LLM_TIMEOUT` | LLM request timeout (seconds) | `45` |
 | `LLM_TEMP` | LLM temperature | `0.25` |
 | `LLM_MAX_REASK` | Max retry attempts for LLM | `1` |
+| `LLM_MAX_TOKENS` | Max tokens per LLM response | `4000` |
 | **Database & Storage** | | |
 | `DATA_DIR` | Data directory path | `./data` |
 | `KGINVEST_DB` | SQLite database path | `data/kginvest_live.db` |

@@ -10,12 +10,14 @@ def create_app():
     """Create and configure the Flask application."""
     app = Flask(
         __name__,
-        template_folder=os.path.join(os.path.dirname(__file__), "../frontend/templates")
+        template_folder=os.path.join(os.path.dirname(__file__), "../frontend/templates"),
+        static_folder=os.path.join(os.path.dirname(__file__), "../frontend/static"),
+        static_url_path='/static'
     )
     app.secret_key = Config.SECRET_KEY
     
     # Register blueprints
-    from src.backend.routes import main, graph, api, workers, insights, stats, bellwethers, investibles
+    from src.backend.routes import main, graph, api, workers, insights, stats, bellwethers, investibles, prompts
     
     app.register_blueprint(main.bp)
     app.register_blueprint(graph.bp)
@@ -25,5 +27,6 @@ def create_app():
     app.register_blueprint(stats.bp)
     app.register_blueprint(bellwethers.bp)
     app.register_blueprint(investibles.bp)
+    app.register_blueprint(prompts.bp)
     
     return app

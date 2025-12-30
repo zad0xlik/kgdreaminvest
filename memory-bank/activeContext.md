@@ -3,7 +3,72 @@
 ## Current Focus (December 2025)
 
 ### Primary Objective
-**COMPLETED**: Successfully implemented LLM-powered investibles expansion system with full UI integration.
+**RESOLVED**: Fixed critical LLM truncation bug causing agents to output zero-allocation "risk-off" plans. Agents now generate real trading decisions with proper capital allocation.
+
+### Critical Bug Fix (December 29, 2025)
+
+#### Agent Zero-Allocation Bug (RESOLVED)
+**Problem:** All agent plans showed identical "risk-off posture" with 0% allocation across all tickers, despite varying market conditions.
+
+**Root Cause Discovered:**
+- LLM responses were being **truncated at ~750-850 tokens** (3066 characters)
+- `max_tokens=1000` parameter was too small for complete JSON response
+- Response cut off mid-JSON, missing:
+  - Closing `]` for decisions array
+  - `"explanation"` field
+  - `"confidence"` field
+  - Closing `}` for entire response
+- JSON extraction code used regex fallback that extracted wrong object (`agents` instead of root)
+- Result: System used default 0.5 confidence and missed all BUY decisions
+
+**Example Truncated Response:**
+```json
+{
+  "agents": {...},
+  "decisions": [
+    {"ticker": "MSFT", "action": "BUY", "allocation_pct": 10.0, ...},
+    {"ticker": "NVDA", "action": "BUY", "allocation_pct": 10.0, ...},
+    {"ticker": "WOLF", "action": "HOLD", "allocation_pct": 0, "note": "Declining, avoid"},
+    // TRUNCATED HERE - missing closing ], explanation, confidence, }
+```
+
+**Solution Implemented:**
+1. **Increased `max_tokens` from 1000 to 4000** in `src/llm/providers.py`
+2. **Made it configurable** via `LLM_MAX_TOKENS` environment variable
+3. **Improved JSON extraction** to try `json.loads()` first before regex fallback
+4. **Added diagnostic logging** to capture full raw responses
+
+**Files Modified:**
+- `src/config.py` - Added `LLM_MAX_TOKENS` configuration
+- `src/llm/providers.py` - Changed to use `Config.LLM_MAX_TOKENS`
+- `src/utils.py` - Improved `extract_json()` to try direct parsing first
+- `.env.example` - Added `LLM_MAX_TOKENS=4000`
+- `README.md` - Documented new configuration option
+
+**Results - BEFORE vs AFTER:**
+
+**BEFORE** (truncated at 1000 tokens):
+- ❌ All HOLD with 0% allocation
+- ❌ Confidence: 0.50 (default fallback)
+- ❌ Critic score: 0.66
+- ❌ Generic auto-generated explanations (193 chars)
+- ❌ Parsed wrong JSON object (agents dict instead of root)
+
+**AFTER** (with 4000 tokens):
+- ✅ Real BUY decisions: MSFT 10%, NVDA 10%, AMZN 8%, GOOGL 8%, LUNR 6%
+- ✅ Confidence: 0.72 (from LLM)
+- ✅ Critic score: 0.77 (higher quality)
+- ✅ Detailed explanations (520 chars)
+- ✅ Correct JSON parsing with all fields present
+
+**Configuration:**
+```env
+LLM_MAX_TOKENS=4000  # Default, can be increased for larger responses
+```
+
+### Previous Completed Feature (December 29, 2025)
+
+#### LLM-Powered Portfolio Expansion (COMPLETED)
 
 ### Latest Major Feature (December 29, 2025)
 

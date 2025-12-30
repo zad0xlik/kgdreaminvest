@@ -102,7 +102,16 @@ def extract_json(raw: str) -> Optional[Dict[str, Any]]:
     
     logger.debug(f"extract_json: input length {len(raw)}, first 200 chars: {raw[:200]}")
     
-    # Method 1: Find outermost JSON object directly
+    # Method 1: Try direct JSON parsing first (handles valid JSON perfectly)
+    try:
+        result = json.loads(raw)
+        if isinstance(result, dict):
+            logger.debug(f"extract_json: success with direct json.loads(), keys: {list(result.keys())}")
+            return result
+    except json.JSONDecodeError as e:
+        logger.debug(f"extract_json: direct json.loads() failed: {e}")
+    
+    # Method 2: Find outermost JSON object directly
     blob = find_outermost_json(raw)
     if blob:
         try:
@@ -112,7 +121,7 @@ def extract_json(raw: str) -> Optional[Dict[str, Any]]:
         except json.JSONDecodeError as e:
             logger.warning(f"extract_json: JSON parse error with find_outermost: {e}")
     
-    # Method 2: Extract from markdown code blocks
+    # Method 3: Extract from markdown code blocks
     markdown_json = extract_json_from_markdown(raw)
     if markdown_json:
         try:
@@ -122,7 +131,7 @@ def extract_json(raw: str) -> Optional[Dict[str, Any]]:
         except json.JSONDecodeError as e:
             logger.warning(f"extract_json: JSON parse error with markdown: {e}")
     
-    # Method 3: Try to find any JSON-like structure with regex
+    # Method 4: Try to find any JSON-like structure with regex
     json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
     matches = re.findall(json_pattern, raw, re.DOTALL)
     for match in matches:
