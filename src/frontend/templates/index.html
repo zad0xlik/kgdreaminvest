@@ -1,0 +1,342 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>KGDreamInvest — Live/Paper</title>
+<script src="https://unpkg.com/vis-network@9.1.2/standalone/umd/vis-network.min.js"></script>
+<style>
+*{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#0b1220,#111827);color:#e5e7eb}
+.container{display:grid;grid-template-columns:340px 1fr 420px;gap:12px;padding:12px;height:100vh}
+.panel{background:rgba(17,24,39,.92);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;overflow:auto}
+h2{margin:0 0 12px 0;font-size:16px;color:#a78bfa;display:flex;gap:8px;align-items:center}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px;margin:8px 0;background:rgba(255,255,255,.05);border-radius:10px}
+.label{color:#9ca3af;font-size:12px}.value{color:#e5e7eb;font-weight:700;font-size:14px}
+.btn{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-weight:800;cursor:pointer;margin:6px 0}
+.btn.red{background:linear-gradient(135deg,#ef4444,#dc2626)} .btn.gray{background:rgba(255,255,255,.08)}
+#graph{width:100%;height:100%;background:rgba(0,0,0,.18);border-radius:14px;border:1px solid rgba(255,255,255,.06);overflow:hidden}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:800;border:1px solid rgba(255,255,255,.14)}
+.pill.on{background:rgba(34,197,94,.18);color:#86efac} .pill.off{background:rgba(239,68,68,.18);color:#fca5a5}
+.small{font-size:12px;color:#9ca3af}
+.log{padding:10px;border-left:3px solid #6366f1;background:rgba(255,255,255,.03);border-radius:10px;margin:8px 0;font-size:12px}
+.insight{padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:linear-gradient(135deg,rgba(167,139,250,.10),rgba(59,130,246,.06));margin:10px 0}
+.insight .title{font-weight:900;color:#ddd6fe;margin-bottom:6px}
+.insight .meta{color:#fbbf24;font-size:11px;margin-top:8px;font-weight:800;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.insight .action{margin-top:8px;font-size:12px;color:#bfdbfe}
+.table{width:100%;border-collapse:collapse;font-size:12px} .table th,.table td{padding:8px;border-bottom:1px solid rgba(255,255,255,.08);text-align:right}
+.table th:first-child,.table td:first-child{text-align:left}
+.kpi{display:grid;grid-template-columns:1fr 1fr;gap:8px} .kpi .row{margin:0}
+.divider{height:1px;background:rgba(255,255,255,.08);margin:12px 0}
+.mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+.collapsible-header{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center}
+.expand-icon{transition:transform 0.2s ease;font-size:14px}
+.expand-icon.collapsed{transform:rotate(-90deg)}
+.collapsible-content{max-height:0;overflow:hidden;transition:max-height 0.3s ease}
+.collapsible-content.expanded{max-height:1000px}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.stat-card{background:rgba(255,255,255,.03);border-radius:8px;padding:10px;border:1px solid rgba(255,255,255,.06)}
+.stat-value{font-weight:800;color:#34d399;font-size:18px}
+.stat-label{font-size:11px;color:#9ca3af;margin-top:2px}
+.history-item{padding:8px;margin:4px 0;background:rgba(255,255,255,.02);border-radius:6px;border-left:3px solid #6366f1;font-size:11px}
+.history-success{border-left-color:#34d399} .history-fail{border-left-color:#ef4444}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="panel">
+    <h2>🌀 KGDreamInvest (Live/Paper)</h2>
+    <div class="kpi">
+      <div class="row"><div class="label">Nodes</div><div class="value" id="k_nodes">{{node_count}}</div></div>
+      <div class="row"><div class="label">Edges</div><div class="value" id="k_edges">{{edge_count}}</div></div>
+
+      <div class="row"><div class="label">Market</div><div class="value"><span id="market_badge" class="pill {{'on' if market_running else 'off'}}">{{'ON' if market_running else 'OFF'}}</span></div></div>
+      <div class="row"><div class="label">Dream</div><div class="value"><span id="dream_badge" class="pill {{'on' if dream_running else 'off'}}">{{'ON' if dream_running else 'OFF'}}</span></div></div>
+      <div class="row"><div class="label">Think</div><div class="value"><span id="think_badge" class="pill {{'on' if think_running else 'off'}}">{{'ON' if think_running else 'OFF'}}</span></div></div>
+      <div class="row"><div class="label">AutoTrade</div><div class="value"><span id="trade_badge" class="pill {{'on' if auto_trade else 'off'}}">{{'ON' if auto_trade else 'OFF'}}</span></div></div>
+    </div>
+
+    <div class="divider"></div>
+    <h2>📡 Latest Snapshot</h2>
+    <div class="row"><div class="label">SPY</div><div class="value" id="bw_spy">{{latest.spy}}</div></div>
+    <div class="row"><div class="label">QQQ</div><div class="value" id="bw_qqq">{{latest.qqq}}</div></div>
+    <div class="row"><div class="label">VIX</div><div class="value" id="bw_vix">{{latest.vix}}</div></div>
+    <div class="row"><div class="label">UUP</div><div class="value" id="bw_uup">{{latest.uup}}</div></div>
+    <div class="row"><div class="label">Signals</div><div class="value"><span class="small mono" id="sig_line">{{latest.signals}}</span></div></div>
+
+    <div class="divider"></div>
+    <h2>💼 Paper Portfolio</h2>
+    <div class="row"><div class="label">Cash</div><div class="value" id="pf_cash">{{portfolio.cash}}</div></div>
+    <div class="row"><div class="label">Equity</div><div class="value" id="pf_equity">{{portfolio.equity}}</div></div>
+    <table class="table" id="pos_table">
+      <thead><tr><th>Symbol</th><th>Qty</th><th>Last</th><th>P&L</th></tr></thead>
+      <tbody>
+        {% for p in portfolio.positions %}
+          <tr><td>{{p.symbol}}</td><td>{{"%.3f"|format(p.qty)}}</td><td>{{"%.2f"|format(p.last_price)}}</td><td>{{"%.2f"|format(p.pnl)}}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="divider"></div>
+    <h2>🎛 Controls</h2>
+    <button class="btn" onclick="marketStart()">▶ Start Market</button>
+    <button class="btn red" onclick="marketStop()">⏸ Stop Market</button>
+    <button class="btn" onclick="dreamStart()">🌙 Start Dream</button>
+    <button class="btn red" onclick="dreamStop()">🛑 Stop Dream</button>
+    <button class="btn" onclick="thinkStart()">🧠 Start Think</button>
+    <button class="btn red" onclick="thinkStop()">🧯 Stop Think</button>
+    <button class="btn gray" onclick="stepMarket()">⏭ Market Step</button>
+    <button class="btn gray" onclick="stepThink()">⏭ Think Step</button>
+    <button class="btn gray" onclick="refreshAll()">🔄 Refresh</button>
+
+    <div class="divider"></div>
+    <h2>🧠 LLM Budget</h2>
+    <div class="row"><div class="label">Calls/min</div><div class="value" id="llm_calls">{{llm.calls_used}} / {{llm.calls_budget}}</div></div>
+    <div class="row"><div class="label">Last error</div><div class="value"><span class="small" id="llm_err">{{llm.last_error}}</span></div></div>
+
+    <div class="divider"></div>
+    <h2>🧾 Recent Activity</h2>
+    <div id="log_box">
+      {% for l in logs %}
+        <div class="log"><b>{{l.actor}}</b> · <span style="color:#a78bfa">{{l.action}}</span><br/><span class="small">{{l.ts}}</span><br/>{{l.detail}}</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div id="graph"></div>
+
+  <div class="panel">
+    <h2>⭐ Starred Plans</h2>
+    <div id="insight_box">
+      {% for ins in insights %}
+        <div class="insight">
+          <div class="title">{{ins.title}}</div>
+          <div class="small">{{ins.ts}} · status={{ins.status}}</div>
+          <div style="margin-top:8px; white-space:pre-wrap;">{{ins.body}}</div>
+          <div class="action"><b>Decisions:</b> <span class="small mono">{{ins.decisions}}</span></div>
+          <div class="meta">
+            <span>★ {{ "%.2f"|format(ins.critic_score) }} · conf {{ "%.2f"|format(ins.confidence) }}</span>
+            <span>
+              <button class="btn gray" style="width:auto;padding:6px 10px;margin:0" onclick="approveInsight({{ins.insight_id}})">Approve</button>
+            </span>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="divider"></div>
+    <div class="collapsible-header" onclick="toggleStatsSection()">
+      <h2>📊 Stats & History</h2>
+      <span class="expand-icon collapsed" id="stats-expand-icon">▼</span>
+    </div>
+    <div class="collapsible-content" id="stats-content">
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="total-lookups">—</div>
+          <div class="stat-label">Total Lookups</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="success-rate">—</div>
+          <div class="stat-label">Success Rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="recent-24h">—</div>
+          <div class="stat-label">Last 24h</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="failed-lookups">—</div>
+          <div class="stat-label">Failed</div>
+        </div>
+      </div>
+      <div style="margin-bottom:12px"><b class="small">Top Active Tickers:</b></div>
+      <div id="top-tickers" class="small">Loading...</div>
+      <div style="margin:12px 0"><b class="small">Recent History:</b></div>
+      <div id="ticker-history" style="max-height:200px;overflow-y:auto">Loading...</div>
+    </div>
+
+    <div class="divider"></div>
+    <h2>🔎 Details</h2>
+    <div class="small">Click a node/edge in the graph to inspect.</div>
+    <div class="divider"></div>
+    <div id="detail_box" class="small">(none)</div>
+  </div>
+</div>
+
+<script>
+let network=null, nodes=null, edges=null;
+async function fetchJSON(url, opts){ const r = await fetch(url, opts||{}); return await r.json(); }
+
+function channelColor(ch){
+  if(!ch) return "#6b7280";
+  if(ch.startsWith("drives")) return "#60a5fa";
+  if(ch.startsWith("inverse")) return "#f87171";
+  if(ch.startsWith("correlates")) return "#34d399";
+  if(ch.startsWith("sentiment")) return "#a78bfa";
+  if(ch.startsWith("policy")) return "#fbbf24";
+  if(ch.startsWith("liquidity")) return "#38bdf8";
+  return "#9ca3af";
+}
+
+async function initGraph(){
+  const data = await fetchJSON("/graph-data");
+  nodes = new vis.DataSet(data.nodes);
+  edges = new vis.DataSet(data.edges);
+
+  const container = document.getElementById("graph");
+  const options = {
+    interaction:{ hover:true, zoomView:true, dragView:true },
+    nodes:{ shape:"dot", font:{size:10, color:"#e5e7eb"}, borderWidth:2 },
+    edges:{ smooth:{type:"continuous"}, color:{ color:"#475569" } },
+    physics:{ enabled:true, stabilization:{iterations:140, fit:true},
+      barnesHut:{ gravitationalConstant:-2400, springLength:120, springConstant:0.004, avoidOverlap:0.35 } }
+  };
+  network = new vis.Network(container, {nodes, edges}, options);
+
+  network.on("click", async (params)=>{
+    if(params.nodes && params.nodes.length){
+      const id = params.nodes[0];
+      const d = await fetchJSON(`/node/${encodeURIComponent(id)}`);
+      document.getElementById("detail_box").innerHTML =
+        `<b>Node</b> ${d.node_id} · <span style="color:#a78bfa">${d.kind}</span><br/><b>${d.label}</b><br/>${d.description||""}<br/><br/>Degree: ${d.degree} · Score: ${d.score.toFixed(2)}`
+        + `<div style="margin-top:10px;"><b>Top connections</b><br/>` + d.edges.map(e=>`• ${e.neighbor_label} — ${e.top_channel} (${e.weight.toFixed(2)})`).join("<br/>") + `</div>`;
+    } else if(params.edges && params.edges.length){
+      const eid = params.edges[0];
+      const d = await fetchJSON(`/edge/${eid}`);
+      document.getElementById("detail_box").innerHTML =
+        `<b>Edge</b> #${d.edge_id}<br/>${d.a_label} ⟷ ${d.b_label}<br/>weight=${d.weight.toFixed(2)} · top=${d.top_channel||""}<br/><br/>`
+        + `<b>Channels</b><br/>` + d.channels.map(c=>`• <span style="color:${channelColor(c.channel)}">${c.channel}</span>: ${c.strength.toFixed(2)}`).join("<br/>");
+    }
+  });
+}
+
+async function refreshGraph(){
+  const data = await fetchJSON("/graph-data");
+  nodes.clear(); edges.clear();
+  nodes.add(data.nodes); edges.add(data.edges);
+  if(network){ network.stabilize(60); }
+}
+
+async function refreshAll(){
+  const st = await fetchJSON("/api/state");
+  document.getElementById("k_nodes").textContent = st.nodes;
+  document.getElementById("k_edges").textContent = st.edges;
+
+  document.getElementById("bw_spy").textContent = st.latest.spy;
+  document.getElementById("bw_qqq").textContent = st.latest.qqq;
+  document.getElementById("bw_vix").textContent = st.latest.vix;
+  document.getElementById("bw_uup").textContent = st.latest.uup;
+  document.getElementById("sig_line").textContent = st.latest.signals;
+
+  document.getElementById("pf_cash").textContent = st.portfolio.cash;
+  document.getElementById("pf_equity").textContent = st.portfolio.equity;
+
+  document.getElementById("llm_calls").textContent = `${st.llm.calls_used} / ${st.llm.calls_budget}`;
+  document.getElementById("llm_err").textContent = st.llm.last_error || "";
+
+  const mk = document.getElementById("market_badge");
+  mk.className = "pill " + (st.market_running ? "on" : "off");
+  mk.textContent = st.market_running ? "ON" : "OFF";
+  const dr = document.getElementById("dream_badge");
+  dr.className = "pill " + (st.dream_running ? "on" : "off");
+  dr.textContent = st.dream_running ? "ON" : "OFF";
+  const th = document.getElementById("think_badge");
+  th.className = "pill " + (st.think_running ? "on" : "off");
+  th.textContent = st.think_running ? "ON" : "OFF";
+  const tr = document.getElementById("trade_badge");
+  tr.className = "pill " + (st.auto_trade ? "on" : "off");
+  tr.textContent = st.auto_trade ? "ON" : "OFF";
+
+  document.querySelector("#pos_table tbody").innerHTML = st.portfolio.positions.map(p=>{
+    return `<tr><td>${p.symbol}</td><td>${p.qty.toFixed(3)}</td><td>${p.last_price.toFixed(2)}</td><td>${p.pnl.toFixed(2)}</td></tr>`;
+  }).join("");
+
+  document.getElementById("log_box").innerHTML = st.logs.map(l=>{
+    return `<div class="log"><b>${l.actor}</b> · <span style="color:#a78bfa">${l.action}</span><br/><span class="small">${l.ts}</span><br/>${l.detail||""}</div>`;
+  }).join("");
+
+  document.getElementById("insight_box").innerHTML = st.insights.map(ins=>{
+    return `<div class="insight">
+      <div class="title">${ins.title}</div>
+      <div class="small">${ins.ts} · status=${ins.status}</div>
+      <div style="margin-top:8px; white-space:pre-wrap;">${ins.body}</div>
+      <div class="action"><b>Decisions:</b> <span class="small mono">${ins.decisions}</span></div>
+      <div class="meta">
+        <span>★ ${ins.critic_score.toFixed(2)} · conf ${ins.confidence.toFixed(2)}</span>
+        <span><button class="btn gray" style="width:auto;padding:6px 10px;margin:0" onclick="approveInsight(${ins.insight_id})">Approve</button></span>
+      </div>
+    </div>`;
+  }).join("");
+
+  // Refresh stats data if section is expanded
+  if(document.getElementById("stats-content").classList.contains("expanded")){
+    await refreshStatsData();
+  }
+
+  await refreshGraph();
+}
+
+function toggleStatsSection(){
+  const content = document.getElementById("stats-content");
+  const icon = document.getElementById("stats-expand-icon");
+  
+  if(content.classList.contains("expanded")){
+    content.classList.remove("expanded");
+    icon.classList.add("collapsed");
+  } else {
+    content.classList.add("expanded");
+    icon.classList.remove("collapsed");
+    refreshStatsData();
+  }
+}
+
+async function refreshStatsData(){
+  try {
+    const stats = await fetchJSON("/api/stats");
+    const history = await fetchJSON("/api/ticker-history?limit=20");
+    
+    // Update stats cards
+    document.getElementById("total-lookups").textContent = stats.lookup_stats.total_lookups;
+    document.getElementById("success-rate").textContent = `${stats.lookup_stats.success_rate}%`;
+    document.getElementById("recent-24h").textContent = stats.lookup_stats.recent_24h;
+    document.getElementById("failed-lookups").textContent = stats.lookup_stats.failed_lookups;
+    
+    // Update top tickers
+    const topTickersHtml = stats.top_tickers.map(t => 
+      `<div class="row" style="margin:2px 0"><div class="label">${t.ticker}</div><div class="value">${t.lookup_count} ($${t.avg_price})</div></div>`
+    ).join("");
+    document.getElementById("top-tickers").innerHTML = topTickersHtml || "No data yet";
+    
+    // Update history
+    const historyHtml = history.history.map(h => {
+      const statusClass = h.success ? "history-success" : "history-fail";
+      const priceText = h.price ? `$${h.price} (${h.change_pct > 0 ? '+' : ''}${h.change_pct}%)` : "Failed";
+      return `<div class="history-item ${statusClass}">
+        <b>${h.ticker}</b> · ${h.ts}<br/>
+        ${priceText}${h.volume ? ` · Vol: ${h.volume.toLocaleString()}` : ""}
+      </div>`;
+    }).join("");
+    document.getElementById("ticker-history").innerHTML = historyHtml || "No history yet";
+    
+  } catch(e) {
+    console.error("Error refreshing stats:", e);
+    document.getElementById("top-tickers").textContent = "Error loading stats";
+    document.getElementById("ticker-history").textContent = "Error loading history";
+  }
+}
+
+async function marketStart(){ await fetchJSON("/api/market/start", {method:"POST"}); await refreshAll(); }
+async function marketStop(){ await fetchJSON("/api/market/stop", {method:"POST"}); await refreshAll(); }
+async function dreamStart(){ await fetchJSON("/api/dream/start", {method:"POST"}); await refreshAll(); }
+async function dreamStop(){ await fetchJSON("/api/dream/stop", {method:"POST"}); await refreshAll(); }
+async function thinkStart(){ await fetchJSON("/api/think/start", {method:"POST"}); await refreshAll(); }
+async function thinkStop(){ await fetchJSON("/api/think/stop", {method:"POST"}); await refreshAll(); }
+async function stepMarket(){ await fetchJSON("/api/market/step", {method:"POST"}); await refreshAll(); }
+async function stepThink(){ await fetchJSON("/api/think/step", {method:"POST"}); await refreshAll(); }
+
+async function approveInsight(id){
+  await fetchJSON(`/api/insight/${id}/approve`, {method:"POST"});
+  await refreshAll();
+}
+
+initGraph().then(()=>refreshAll());
+setInterval(refreshAll, 7000);
+</script>
+</body></html>
