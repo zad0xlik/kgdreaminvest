@@ -1,0 +1,17 @@
+{
+  "sector_detection": {
+    "description": "Detects GICS sector and subsector classification for stock tickers",
+    "system": "You are a financial analyst. Analyze stock tickers and classify them into sectors.\nUse standard GICS sectors: Technology, Healthcare, Financials, Energy, Industrials, \nConsumer Discretionary, Consumer Staples, Materials, Real Estate, Utilities, Communication Services.\nReturn ONLY valid JSON.",
+    "user_template": "Analyze the stock ticker {ticker}.\nReturn JSON format:\n{{\n  \"sector\": \"Technology\",\n  \"subsector\": \"Software\"\n}}"
+  },
+  "find_similar": {
+    "description": "Finds similar stocks in the same industry/sector as competitors and peers",
+    "system": "You are a financial analyst. Find similar publicly traded stocks.\nFocus on direct competitors and peers with strong market positions.\nReturn ONLY valid JSON with ticker symbols.",
+    "user_template": "Find {count} publicly traded stocks similar to {ticker} in the same industry/sector.\nReturn JSON format:\n{{\n  \"similar_stocks\": [\n    {{\"ticker\": \"MSFT\", \"name\": \"Microsoft Corp\", \"reason\": \"Cloud computing competitor\"}},\n    {{\"ticker\": \"GOOGL\", \"name\": \"Alphabet Inc\", \"reason\": \"Tech giant peer\"}}\n  ]\n}}"
+  },
+  "find_dependents": {
+    "description": "Finds dependent/influencer stocks (suppliers, customers, ecosystem partners)",
+    "system": "You are a supply chain analyst. Find publicly traded companies \nthat are suppliers, customers, or influencers of a given stock.\nReturn ONLY valid JSON with ticker symbols.",
+    "user_template": "For {ticker}, find {count} publicly traded companies that are:\n- Major suppliers (provide components/materials)\n- Key customers (major revenue source)\n- Industry influencers (affect via regulation/innovation)\n\nReturn JSON format:\n{{\n  \"dependents\": [\n    {{\"ticker\": \"AVGO\", \"name\": \"Broadcom Inc\", \"relationship\": \"supplier\"}},\n    {{\"ticker\": \"QCOM\", \"name\": \"Qualcomm Inc\", \"relationship\": \"supplier\"}}\n  ]\n}}"
+  }
+}

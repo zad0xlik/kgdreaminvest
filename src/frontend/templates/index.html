@@ -1,0 +1,237 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>KGDreamInvest — Live/Paper</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <script src="https://unpkg.com/vis-network@9.1.2/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Left Panel: Controls & Status -->
+    <div class="panel">
+      <h2>🌀 KGDreamInvest (Live/Paper)</h2>
+      <div class="kpi">
+        <div class="row"><div class="label">Nodes</div><div class="value" id="k_nodes">{{node_count}}</div></div>
+        <div class="row"><div class="label">Edges</div><div class="value" id="k_edges">{{edge_count}}</div></div>
+        <div class="row"><div class="label">Market</div><div class="value"><span id="market_badge" class="pill {{'on' if market_running else 'off'}}">{{'ON' if market_running else 'OFF'}}</span></div></div>
+        <div class="row"><div class="label">Dream</div><div class="value"><span id="dream_badge" class="pill {{'on' if dream_running else 'off'}}">{{'ON' if dream_running else 'OFF'}}</span></div></div>
+        <div class="row"><div class="label">Think</div><div class="value"><span id="think_badge" class="pill {{'on' if think_running else 'off'}}">{{'ON' if think_running else 'OFF'}}</span></div></div>
+        <div class="row"><div class="label">AutoTrade</div><div class="value"><span id="trade_badge" class="pill {{'on' if auto_trade else 'off'}}">{{'ON' if auto_trade else 'OFF'}}</span></div></div>
+      </div>
+
+      <div class="divider"></div>
+      <h2>📡 Latest Snapshot</h2>
+      <div class="row"><div class="label">SPY</div><div class="value" id="bw_spy">{{latest.spy}}</div></div>
+      <div class="row"><div class="label">QQQ</div><div class="value" id="bw_qqq">{{latest.qqq}}</div></div>
+      <div class="row"><div class="label">VIX</div><div class="value" id="bw_vix">{{latest.vix}}</div></div>
+      <div class="row"><div class="label">UUP</div><div class="value" id="bw_uup">{{latest.uup}}</div></div>
+      <div class="row"><div class="label">Signals</div><div class="value"><span class="small mono" id="sig_line">{{latest.signals}}</span></div></div>
+
+      <div class="divider"></div>
+      <h2>💼 Paper Portfolio</h2>
+      <div class="row"><div class="label">Cash</div><div class="value" id="pf_cash">{{portfolio.cash}}</div></div>
+      <div class="row"><div class="label">Equity</div><div class="value" id="pf_equity">{{portfolio.equity}}</div></div>
+      <table class="table" id="pos_table">
+        <thead><tr><th>Symbol</th><th>Qty</th><th>Last</th><th>P&L</th></tr></thead>
+        <tbody>
+          {% for p in portfolio.positions %}
+            <tr><td>{{p.symbol}}</td><td>{{"%.3f"|format(p.qty)}}</td><td>{{"%.2f"|format(p.last_price)}}</td><td>{{"%.2f"|format(p.pnl)}}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="divider"></div>
+      <h2>🎛 Controls</h2>
+      <button class="btn" onclick="marketStart()">▶ Start Market</button>
+      <button class="btn red" onclick="marketStop()">⏸ Stop Market</button>
+      <button class="btn" onclick="dreamStart()">🌙 Start Dream</button>
+      <button class="btn red" onclick="dreamStop()">🛑 Stop Dream</button>
+      <button class="btn" onclick="thinkStart()">🧠 Start Think</button>
+      <button class="btn red" onclick="thinkStop()">🧯 Stop Think</button>
+      <button class="btn gray" onclick="stepMarket()">⏭ Market Step</button>
+      <button class="btn gray" onclick="stepThink()">⏭ Think Step</button>
+      <button class="btn gray" onclick="refreshAll()">🔄 Refresh</button>
+
+      <div class="divider"></div>
+      <h2>🧠 LLM Budget</h2>
+      <div class="row"><div class="label">Calls/min</div><div class="value" id="llm_calls">{{llm.calls_used}} / {{llm.calls_budget}}</div></div>
+      <div class="row"><div class="label">Last error</div><div class="value"><span class="small" id="llm_err">{{llm.last_error}}</span></div></div>
+
+      <div class="divider"></div>
+      <h2>🧾 Recent Activity</h2>
+      <div id="log_box">
+        {% for l in logs %}
+          <div class="log"><b>{{l.actor}}</b> · <span style="color:#a78bfa">{{l.action}}</span><br/><span class="small">{{l.ts}}</span><br/>{{l.detail}}</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Center Panel: Tabbed Interface -->
+    <div class="center-panel">
+      <div class="tab-nav">
+        <button class="tab-button active" data-tab="graph" onclick="switchTab('graph')">📊 Graph</button>
+        <button class="tab-button" data-tab="plans" onclick="switchTab('plans')">⭐ Starred Plans</button>
+        <button class="tab-button" data-tab="options" onclick="switchTab('options')">📈 Options</button>
+        <button class="tab-button" data-tab="prompts" onclick="switchTab('prompts')">🤖 AI Prompts</button>
+      </div>
+
+      <!-- Graph Tab -->
+      <div id="tab-graph" class="tab-content active">
+        <div id="graph-container"></div>
+      </div>
+
+      <!-- Starred Plans Tab -->
+      <div id="tab-plans" class="tab-content">
+        <div id="insight_box">
+          {% for ins in insights %}
+            <div class="insight">
+              <div class="title">{{ins.title}}</div>
+              <div class="small">{{ins.ts}} · status={{ins.status}}</div>
+              <div style="margin-top:8px; white-space:pre-wrap;">{{ins.body}}</div>
+              <div class="action"><b>Decisions:</b> <span class="small mono">{{ins.decisions}}</span></div>
+              <div class="meta">
+                <span>★ {{ "%.2f"|format(ins.critic_score) }} · conf {{ "%.2f"|format(ins.confidence) }}</span>
+                <span>
+                  <button class="btn gray" style="width:auto;padding:6px 10px;margin:0" onclick="approveInsight({{ins.insight_id}})">Approve</button>
+                </span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Options Tab -->
+      <div id="tab-options" class="tab-content">
+        <div id="options-content">
+          <div style="text-align:center;padding:40px;color:#9ca3af">
+            Loading options data...
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Prompts Tab -->
+      <div id="tab-prompts" class="tab-content">
+        <div class="prompt-editor">
+          <div class="prompt-info" id="prompt-info" style="display:none;">
+            Select a prompt to edit
+          </div>
+          
+          <div class="prompt-selector">
+            <select id="prompt-category" onchange="onCategoryChange()">
+              <option value="">Select category...</option>
+            </select>
+            <select id="prompt-name" onchange="onPromptNameChange()">
+              <option value="">Select prompt...</option>
+            </select>
+          </div>
+
+          <div class="prompt-field">
+            <label>Description</label>
+            <input type="text" id="prompt-description" placeholder="Brief description of this prompt's purpose">
+          </div>
+
+          <div class="prompt-field">
+            <label>System Prompt</label>
+            <textarea id="prompt-system" placeholder="System-level instructions for the LLM..." rows="6"></textarea>
+          </div>
+
+          <div class="prompt-field">
+            <label>User Prompt Template</label>
+            <textarea id="prompt-user" placeholder="User prompt template with {variable} placeholders..." rows="12"></textarea>
+          </div>
+
+          <div class="prompt-actions">
+            <button class="btn green" onclick="saveCurrentPrompt()">💾 Save Prompt</button>
+            <button class="btn gray" onclick="resetCurrentPrompt()">↺ Reset</button>
+            <button class="btn gray" onclick="reloadPrompts()">🔄 Reload from Disk</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Configuration -->
+    <div class="panel">
+      <div class="collapsible-header" onclick="toggleBellwethersSection()">
+        <h2>📡 Bellwethers Config</h2>
+        <span class="expand-icon collapsed" id="bellwethers-expand-icon">▼</span>
+      </div>
+      <div class="collapsible-content" id="bellwethers-content">
+        <div class="small" style="margin-bottom:10px">Configure market indicators used for regime signals</div>
+        <div id="bellwethers-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px">Loading...</div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <input type="text" id="new-bellwether-ticker" placeholder="Ticker (e.g., SPY)" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#e5e7eb"/>
+          <button class="btn" style="width:auto;padding:8px 12px;margin:0" onclick="addBellwether()">Add</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="collapsible-header" onclick="toggleInvestiblesSection()">
+        <h2>🎯 Investibles Config</h2>
+        <span class="expand-icon collapsed" id="investibles-expand-icon">▼</span>
+      </div>
+      <div class="collapsible-content" id="investibles-content">
+        <div class="small" style="margin-bottom:10px">Configure trading universe with LLM-powered expansion</div>
+        <div id="investibles-list" style="max-height:300px;overflow-y:auto;margin-bottom:12px">Loading...</div>
+        <div id="expansion-status" style="padding:8px;background:rgba(167,139,250,.08);border-radius:6px;margin-bottom:10px;display:none">
+          <div class="small" style="color:#a78bfa"><b>Expansion in progress...</b></div>
+          <div class="small" id="expansion-progress">Starting...</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <input type="text" id="new-investible-ticker" placeholder="Ticker (e.g., NVDA)" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#e5e7eb"/>
+          <button class="btn" style="width:auto;padding:8px 12px;margin:0" onclick="addInvestible()">Add</button>
+        </div>
+        <div style="margin-top:8px">
+          <label style="font-size:11px;color:#9ca3af;display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="auto-expand-checkbox" checked style="cursor:pointer"/>
+            <span>Auto-expand portfolio (LLM finds similar & dependent stocks)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="collapsible-header" onclick="toggleStatsSection()">
+        <h2>📊 Stats & History</h2>
+        <span class="expand-icon collapsed" id="stats-expand-icon">▼</span>
+      </div>
+      <div class="collapsible-content" id="stats-content">
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="total-lookups">—</div>
+            <div class="stat-label">Total Lookups</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="success-rate">—</div>
+            <div class="stat-label">Success Rate</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="recent-24h">—</div>
+            <div class="stat-label">Last 24h</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="failed-lookups">—</div>
+            <div class="stat-label">Failed</div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px"><b class="small">Top Active Tickers:</b></div>
+        <div id="top-tickers" class="small">Loading...</div>
+        <div style="margin:12px 0"><b class="small">Recent History:</b></div>
+        <div id="ticker-history" style="max-height:200px;overflow-y:auto">Loading...</div>
+      </div>
+
+      <div class="divider"></div>
+      <h2>🔎 Details</h2>
+      <div class="small">Click a node/edge in the graph to inspect.</div>
+      <div class="divider"></div>
+      <div id="detail_box" class="small">(none)</div>
+    </div>
+  </div>
+
+  <!-- Load JavaScript modules -->
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/graph.js"></script>
+  <script src="/static/js/prompts.js"></script>
+  <script src="/static/js/options.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
