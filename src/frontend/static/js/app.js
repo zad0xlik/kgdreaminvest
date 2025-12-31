@@ -39,9 +39,20 @@ async function refreshAll() {
   tr.className = "pill " + (st.auto_trade ? "on" : "off");
   tr.textContent = st.auto_trade ? "ON" : "OFF";
 
-  // Update positions table
+  // Update positions table with both equities and options
   document.querySelector("#pos_table tbody").innerHTML = st.portfolio.positions.map(p => {
-    return `<tr><td>${p.symbol}</td><td>${p.qty.toFixed(3)}</td><td>${p.last_price.toFixed(2)}</td><td>${p.pnl.toFixed(2)}</td></tr>`;
+    const typeClass = p.type === 'option' ? 'option-badge' : 'equity-badge';
+    const typeLabel = p.type === 'option' ? 'OPT' : 'STK';
+    const executionTime = p.updated_at ? p.updated_at.substring(0, 19).replace('T', ' ') : '—';
+    const qtyDisplay = p.type === 'option' ? p.qty.toFixed(0) : p.qty.toFixed(3);
+    
+    return `<tr>
+      <td><span class="${typeClass}">${typeLabel}</span> ${p.symbol}</td>
+      <td>${qtyDisplay}</td>
+      <td>${p.last_price.toFixed(2)}</td>
+      <td class="${p.pnl >= 0 ? 'positive' : 'negative'}">${p.pnl >= 0 ? '+' : ''}${p.pnl.toFixed(2)}</td>
+      <td class="small">${executionTime}</td>
+    </tr>`;
   }).join("");
 
   // Update logs

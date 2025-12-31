@@ -148,12 +148,14 @@ def portfolio_state(conn: sqlite3.Connection, prices: Optional[Dict[str, Any]] =
         prices: Optional price dictionary to mark-to-market positions
         
     Returns:
-        Dict with keys: cash, equity, positions (list of position dicts)
+        Dict with keys: cash, equity, equity_positions, options_positions
     """
     cash = get_cash(conn)
+    
+    # Equity positions
     pos = conn.execute("SELECT * FROM positions ORDER BY symbol").fetchall()
-    positions = []
-    equity = cash
+    equity_positions = []
+    equity_value = cash
     price_map = prices or {}
     
     for r in pos:
@@ -171,21 +173,63 @@ def portfolio_state(conn: sqlite3.Connection, prices: Optional[Dict[str, Any]] =
         avg = float(r["avg_cost"])
         mv = qty * last
         pnl = (last - avg) * qty
-        equity += mv
+        equity_value += mv
         
-        positions.append({
+        equity_positions.append({
             "symbol": sym,
             "qty": qty,
             "last_price": last,
             "avg_cost": avg,
             "pnl": pnl,
-            "mv": mv
+            "mv": mv,
+            "updated_at": r["updated_at"],
+            "type": "equity"
+        })
+    
+    # Options positions
+    options_rows = conn.execute("""
+        SELECT op.position_id, op.option_id, op.qty, op.avg_cost, op.last_price, op.updated_at,
+               om.underlying, om.option_type, om.strike, om.expiration, om.contract_symbol
+        FROM options_positions op
+        JOIN options_monitored om ON op.option_id = om.option_id
+        WHERE op.qty > 0
+        ORDER BY om.underlying, om.option_type, om.strike
+    """).fetchall()
+    
+    options_positions = []
+    for r in options_rows:
+        qty = float(r["qty"])
+        last = float(r["last_price"])
+        avg = float(r["avg_cost"])
+        
+        # Options have $100 multiplier
+        mv = qty * last * 100
+        pnl = (last - avg) * qty * 100
+        equity_value += mv
+        
+        symbol = f"{r['underlying']} {r['strike']}{r['option_type'][0]} {r['expiration']}"
+        
+        options_positions.append({
+            "symbol": symbol,
+            "qty": qty,
+            "last_price": last,
+            "avg_cost": avg,
+            "pnl": pnl,
+            "mv": mv,
+            "updated_at": r["updated_at"],
+            "type": "option",
+            "underlying": r["underlying"],
+            "option_type": r["option_type"],
+            "strike": float(r["strike"]),
+            "expiration": r["expiration"]
         })
     
     return {
         "cash": cash,
-        "equity": equity,
-        "positions": positions
+        "equity": equity_value,
+        "equity_positions": equity_positions,
+        "options_positions": options_positions,
+        "positions": equity_positions + options_positions  # Combined for backward compatibility
     }
 
 

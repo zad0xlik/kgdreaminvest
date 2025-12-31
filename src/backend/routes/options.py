@@ -50,13 +50,15 @@ def get_options():
         else:
             spot_prices = {}
         
-        # Get all monitored options
+        # Get all monitored options with position info
         options_rows = conn.execute("""
             SELECT 
                 om.*,
-                os.bid, os.ask, os.last, os.ts as snapshot_ts
+                os.bid, os.ask, os.last, os.ts as snapshot_ts,
+                op.position_id, op.qty as position_qty, op.avg_cost, op.updated_at as position_updated
             FROM options_monitored om
             LEFT JOIN options_snapshots os ON om.option_id = os.option_id
+            LEFT JOIN options_positions op ON om.option_id = op.option_id AND op.qty > 0
             WHERE om.enabled = 1
             AND os.snapshot_id = (
                 SELECT MAX(snapshot_id) 
@@ -90,6 +92,12 @@ def get_options():
             total_theta += float(row["theta"] or 0)
             total_vega += float(row["vega"] or 0)
             
+            # Position info (if executed)
+            has_position = row["position_id"] is not None
+            position_qty = float(row["position_qty"] or 0) if has_position else 0
+            avg_cost = float(row["avg_cost"] or 0) if has_position else 0
+            position_updated = row["position_updated"] if has_position else None
+            
             options_list.append({
                 "option_id": int(row["option_id"]),
                 "underlying": row["underlying"],
@@ -111,7 +119,11 @@ def get_options():
                 "reasoning": row["selection_reason"] or "",
                 "moneyness": moneyness,
                 "spot_price": spot,
-                "last_updated": row["last_updated"]
+                "last_updated": row["last_updated"],
+                "executed": has_position,
+                "position_qty": position_qty,
+                "avg_cost": avg_cost,
+                "executed_at": position_updated
             })
     
     return jsonify({

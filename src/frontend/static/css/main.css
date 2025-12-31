@@ -163,10 +163,40 @@ h3 {
 .pill {
   display: inline-block;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 12px;
+  font-weight: 600;
   font-size: 11px;
-  font-weight: 800;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  text-transform: uppercase;
+}
+
+.equity-badge, .option-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 9px;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+
+.equity-badge {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.option-badge {
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.positive {
+  color: #10b981 !important;
+}
+
+.negative {
+  color: #ef4444 !important;
 }
 
 .pill.on {

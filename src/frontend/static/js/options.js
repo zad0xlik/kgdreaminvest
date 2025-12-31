@@ -131,6 +131,7 @@ function renderOptionsTab() {
                         <th onclick="sortBy('volume')">Volume ${sortColumn === 'volume' ? (sortAscending ? '▲' : '▼') : ''}</th>
                         <th onclick="sortBy('open_interest')">OI ${sortColumn === 'open_interest' ? (sortAscending ? '▲' : '▼') : ''}</th>
                         <th>IV</th>
+                        <th onclick="sortBy('executed')">Status ${sortColumn === 'executed' ? (sortAscending ? '▲' : '▼') : ''}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -180,6 +181,12 @@ function renderOptionRow(opt) {
             <td>${opt.volume.toLocaleString()}</td>
             <td>${opt.open_interest.toLocaleString()}</td>
             <td>${(opt.iv * 100).toFixed(1)}%</td>
+            <td>
+                ${opt.executed ? 
+                    `<span class="pill on" style="font-size:9px">EXECUTED</span><br/><span class="small">${opt.position_qty} @ $${opt.avg_cost.toFixed(2)}</span><br/><span class="small">${opt.executed_at ? opt.executed_at.substring(0,19).replace('T',' ') : ''}</span>` : 
+                    `<span class="pill off" style="font-size:9px">MONITORED</span>`
+                }
+            </td>
         </tr>
         <tr class="option-reasoning-row" id="reasoning-${opt.option_id}" style="display:none">
             <td colspan="9" class="reasoning-cell">

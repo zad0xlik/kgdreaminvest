@@ -33,7 +33,7 @@
       <div class="row"><div class="label">Cash</div><div class="value" id="pf_cash">{{portfolio.cash}}</div></div>
       <div class="row"><div class="label">Equity</div><div class="value" id="pf_equity">{{portfolio.equity}}</div></div>
       <table class="table" id="pos_table">
-        <thead><tr><th>Symbol</th><th>Qty</th><th>Last</th><th>P&L</th></tr></thead>
+        <thead><tr><th>Symbol</th><th>Qty</th><th>Last</th><th>P&L</th><th>Executed</th></tr></thead>
         <tbody>
           {% for p in portfolio.positions %}
             <tr><td>{{p.symbol}}</td><td>{{"%.3f"|format(p.qty)}}</td><td>{{"%.2f"|format(p.last_price)}}</td><td>{{"%.2f"|format(p.pnl)}}</td></tr>
