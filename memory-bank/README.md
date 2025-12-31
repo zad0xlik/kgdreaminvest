@@ -57,7 +57,7 @@ As outlined in the project's `.clinerules`, this Memory Bank serves as the singl
 
 ### Current State (December 2025)
 - **Status**: OpenRouter integration completed but has parse errors with kat-coder-pro model
-- **Working**: Core 3-worker system, market data, knowledge graph, paper trading
+- **Working**: Core 4-worker system, market data, knowledge graph, paper trading
 - **Issues**: LLM response parsing, need to verify provider routing
 - **Next**: Debug parse errors, improve error logging
 
@@ -126,5 +126,6 @@ As outlined in the project's `.clinerules`, this Memory Bank serves as the singl
 ### Documentation
 - [README](../README.md) - User-facing documentation with mermaid diagrams
 - [Git Ignore](../.gitignore) - Version control exclusions
+- [Options Trading Design](../docs/OPTIONS_TRADING_DESIGN.md) - Complete technical documentation for options integration
 
 This Memory Bank ensures project continuity and enables effective collaboration across development sessions.

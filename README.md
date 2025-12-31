@@ -115,7 +115,7 @@ sequenceDiagram
     end
 ```
 
-## Three-Worker Architecture
+## Four-Worker Architecture
 
 ```mermaid
 flowchart LR
@@ -147,8 +147,20 @@ flowchart LR
         C7 --> C8
     end
 
+    subgraph Options_Cycle["Options Worker Cycle (Every 6 min)"]
+        D1[Fetch Option Chains] --> D2[Filter by Liquidity]
+        D2 --> D3[Calculate Greeks]
+        D3 --> D4{LLM Selection?}
+        D4 -->|Yes| D5[LLM Selects Options]
+        D4 -->|No| D6[Skip Selection]
+        D5 --> D7[Update Monitored Options]
+        D7 --> D8[Create Graph Nodes]
+        D8 --> D9[Store Snapshots]
+    end
+
     A4 -.-> B1
     A4 -.-> C1
+    A4 -.-> D1
 ```
 
 ## Screenshot

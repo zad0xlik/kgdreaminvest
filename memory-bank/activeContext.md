@@ -298,7 +298,7 @@ EXPANSION_LLM_CALLS_PER_MIN=10
 1. **Database Reset**: Clearing database and cache resolved portfolio display issue
 2. **Environment Loading**: `.env` variables now being read properly
 3. **Model Configuration**: Log shows correct model name being used
-4. **System Stability**: All three workers running without crashes
+4. **System Stability**: All four workers running without crashes
 
 ### What Needs Attention
 1. **LLM Response Parsing**: kat-coder-pro model may return different JSON format
