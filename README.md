@@ -28,11 +28,14 @@ graph TB
         MarketWorker[Market Worker<br/>Data Collection]
         DreamWorker[Dream Worker<br/>KG Maintenance]
         ThinkWorker[Think Worker<br/>Multi-Agent Decisions]
+        OptionsWorker[Options Worker<br/>Derivatives Intelligence]
         
         MarketWorker -->|Price Data| DB[(SQLite Database)]
         DreamWorker -->|KG Updates| DB
         ThinkWorker -->|Insights/Trades| DB
+        OptionsWorker -->|Options Data + Greeks| DB
     end
+
 
     subgraph "Data Processing"
         YahooAPI[Yahoo Finance API]
@@ -420,6 +423,131 @@ The expansion runs in a **background thread** and uses a **separate LLM budget**
 To add stocks **without** auto-expansion:
 - Uncheck "Auto-expand portfolio" in the UI before adding
 - Or set `EXPANSION_ENABLED=false` in `.env`
+
+### Options Trading Integration
+
+**NEW FEATURE**: KGDreamInvest now includes a **sophisticated options monitoring system** that provides derivatives intelligence to enhance trading decisions.
+
+#### How Options Work in the System
+
+The Options Worker operates independently (~6 min cycles) and provides a **multi-dimensional intelligence layer**:
+
+```mermaid
+graph TB
+    subgraph "Options Intelligence"
+        OW[Options Worker] --> Fetch[Fetch Option Chains<br/>yfinance API]
+        Fetch --> Filter[Filter by Liquidity<br/>DTE: 14-60 days<br/>Volume/OI thresholds]
+        Filter --> Greeks[Calculate Greeks<br/>Black-Scholes Model]
+        Greeks --> LLM[LLM Selection<br/>Pick best 3-5 options]
+        LLM --> Monitor[Monitored Options<br/>Database + Graph]
+    end
+    
+    subgraph "Knowledge Graph Integration"
+        Monitor --> Nodes[Option Nodes<br/>option_call/put]
+        Nodes --> Edges[Option Edges<br/>options_leverages<br/>options_hedges]
+        Edges --> Equity[Equity Nodes]
+    end
+    
+    subgraph "Trading Intelligence"
+        Equity --> Signals[Market Signals]
+        Signals --> IV[IV Spike?<br/>Fear Gauge]
+        Signals --> OI[Put OI Surge?<br/>Hedge Demand]
+        Signals --> Delta[Delta Divergence?<br/>Sentiment]
+        
+        IV --> Decision[Think Worker<br/>Strategy Formation]
+        OI --> Decision
+        Delta --> Decision
+    end
+```
+
+**Key Capabilities:**
+
+1. **Volatility Regime Detection**
+   - High IV → Market fear → Reduce risk exposure
+   - Low IV → Complacency → Look for opportunities
+   - **Graph Impact**: Options with high IV get stronger edge weights
+
+2. **Institutional Positioning Analysis**
+   - Put/Call OI ratio reveals hedging activity
+   - High put OI → Caution signal (institutions protecting)
+   - High call OI → Bullish conviction
+   - **Graph Impact**: Creates `options_hedges` or `options_leverages` edges
+
+3. **Mispricing Detection**
+   - Compare implied volatility (options) vs realized volatility (stock)
+   - IV > Realized Vol → Options overpriced
+   - IV < Realized Vol → Option leverage opportunities  
+   - **Graph Impact**: Mispricing creates weaker `greek_exposure` edges
+
+4. **Sentiment & Momentum Gauges**
+   - Delta-weighted positioning shows market bias
+   - Divergence between options and equity signals reversals
+   - **Graph Impact**: Divergence weakens correlation edges
+
+#### Options in the Knowledge Graph
+
+Options become **first-class graph entities** with specialized relationships:
+
+**Node Types:**
+- `option_call` - Call options (bullish leverage)
+- `option_put` - Put options (downside protection)
+
+**Edge Channels:**
+- `options_leverages` (0.80) - Call options for upside exposure
+- `options_hedges` (0.85) - Put options for downside protection
+- `greek_exposure` (0.70) - Delta/Vega correlation to underlying
+- `options_strategy` (0.75) - Part of spread or combo trades
+
+**Example Graph Structure:**
+```
+AAPL (equity) --[options_leverages 0.80]--> AAPL_C180_0315 (call, Δ=0.60)
+AAPL (equity) --[options_hedges 0.85]--> AAPL_P175_0315 (put, Δ=-0.40)
+```
+
+#### Trading Strategy Integration
+
+The Think Worker uses options intelligence to make **context-aware decisions**:
+
+**Example Decision Flow:**
+1. **Market observes** AAPL stock flat, but put IV spiking
+2. **Options Worker** detects unusual put OI increase
+3. **Graph updates** strengthen `options_hedges` edges
+4. **Dream Worker** identifies correlation: "Protective demand rising"
+5. **Think Worker** receives signal: "High hedging demand, reduce AAPL exposure"
+6. **Multi-Agent LLM** decides: "Trim AAPL position from 12% to 8%"
+
+#### Configuration
+
+```env
+# Options Configuration Variables
+OPTIONS_ENABLED=true                    # Enable options monitoring
+OPTIONS_MAX_ALLOCATION_PCT=10.0         # Max 10% portfolio in options
+OPTIONS_WORKER_SPEED=0.17               # ~6 minute cycles  
+OPTIONS_MIN_VOLUME=500                  # Liquidity threshold
+OPTIONS_MIN_OPEN_INTEREST=1000          # Liquidity threshold
+OPTIONS_MIN_DTE=14                      # Min days to expiration
+OPTIONS_MAX_DTE=60                      # Max days to expiration
+OPTIONS_LLM_CALLS_PER_MIN=5             # Separate LLM budget
+```
+
+#### Viewing Options Data
+
+Access the **"📈 Options" tab** in the web UI to see:
+- Summary cards (monitored count, worker status, portfolio Greeks)
+- Sortable table with all monitored options
+- Filters by underlying ticker or call/put type
+- Color-coded badges (ITM/ATM/OTM indicators)
+- Greeks display (Delta, Gamma, Theta, Vega)
+- LLM selection reasoning for each option
+- Detailed option information in right panel
+
+**Portfolio Greeks Dashboard:**
+- **Net Delta**: Overall directional exposure
+- **Net Gamma**: Sensitivity to large moves
+- **Net Theta**: Time decay impact
+- **Net Vega**: Volatility exposure
+
+See `docs/OPTIONS_TRADING_DESIGN.md` for complete technical documentation.
 
 ## Accessing the Web UI
 

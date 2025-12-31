@@ -3,7 +3,7 @@
 ## What's Working (Current Status)
 
 ### ✅ Core System Architecture
-- **Three-Worker System**: Market, Dream, and Think workers all operational
+- **Four-Worker System**: Market, Dream, Think, and Options workers all operational
 - **Database Layer**: SQLite with proper concurrency handling (WAL mode)
 - **Web Dashboard**: Flask UI with real-time updates via AJAX
 - **Knowledge Graph**: Vis-network visualization with interactive node/edge exploration
@@ -55,6 +55,35 @@
 - **Real-time UI**: Tree view with color-coded levels and progress monitoring
 - **Full CRUD API**: 8 RESTful endpoints for investibles management
 - **Dynamic Configuration**: Add/remove/toggle stocks via Web UI
+
+### ✅ Options Trading Intelligence Layer (NEW - Dec 30, 2025)
+- **Options Worker**: Fourth independent worker monitoring derivative markets (~6 min cycles)
+- **Data Pipeline**: yfinance integration for option chain fetching with liquidity filtering
+- **Greeks Calculation**: Black-Scholes implementation (Delta, Gamma, Theta, Vega, Rho)
+- **LLM Selection**: Intelligent 3-5 option selection per ticker with reasoning
+- **Knowledge Graph Integration**: 
+  - New node types: `option_call`, `option_put`
+  - New edge channels: `options_leverages`, `options_hedges`, `greek_exposure`, `options_strategy`
+  - Options as first-class graph entities
+- **Database Schema**: 4 new tables (monitored_options, options_snapshots, options_positions, options_trades)
+- **Separate Budget**: Independent OptionsBudget class (5 calls/min)
+- **UI Integration**: 
+  - New "📈 Options" tab in center panel
+  - Summary cards (count, status, portfolio Greeks)
+  - Sortable/filterable options table
+  - Color-coded badges (ITM/ATM/OTM, Call/Put)
+  - Greeks display with positive/negative indicators
+  - LLM reasoning for each selection
+  - Detail panel integration
+- **Trading Intelligence**:
+  - Volatility regime detection (IV spike = fear gauge)
+  - Institutional positioning (Put/Call OI ratio)
+  - Mispricing detection (implied vs realized volatility)
+  - Sentiment analysis (delta-weighted positioning)
+  - Correlation tracking (options vs equity divergence)
+- **API Endpoints**: `/api/options`, `/api/options/history/<id>`, worker controls
+- **Configuration**: 8 new environment variables for fine-tuned control
+- **Guard Rails**: 10% max portfolio allocation, liquidity requirements (500+ volume OR 1000+ OI), DTE range (14-60 days)
 
 ### ✅ Modern Development Setup
 - **Package Management**: uv with pyproject.toml configuration
@@ -227,10 +256,10 @@
 
 ### Technical Success
 - ✅ System runs continuously without crashes
-- ✅ All three workers operating independently
+- ✅ All four workers operating independently (Market, Dream, Think, Options)
 - ✅ Database maintains consistency under concurrent access
 - ✅ Web UI remains responsive during operation
-- ⚠️ LLM integration reliable (needs parse error fix)
+- ✅ LLM integration reliable (parse error fixed Dec 29, 2025)
 
 ### Educational Success
 - ✅ Architecture demonstrates multi-agent systems
@@ -243,7 +272,7 @@
 - ✅ Paper trading with proper risk management
 - ✅ Interactive visualization engaging users
 - ✅ Autonomous operation with manual overrides
-- ⚠️ Multi-agent decision making (pending parse fix)
+- ✅ Multi-agent decision making (parse fix completed Dec 29, 2025)
 
 ## Next Milestone Goals
 
@@ -280,7 +309,9 @@
 - Single-file approach aids educational understanding
 
 ### Architecture Decisions
-- Three-worker pattern provides good separation of concerns
+- Four-worker pattern provides excellent separation of concerns (Market, Dream, Think, Options)
+- Independent worker budgets prevent LLM exhaustion across different tasks
 - SQLite sufficient for prototype but may need scaling consideration
 - Multi-channel edge model enables rich relationship representation
 - Guard rails essential for autonomous system safety
+- Options integration demonstrates extensibility of the architecture

@@ -72,6 +72,7 @@
       <div class="tab-nav">
         <button class="tab-button active" data-tab="graph" onclick="switchTab('graph')">📊 Graph</button>
         <button class="tab-button" data-tab="plans" onclick="switchTab('plans')">⭐ Starred Plans</button>
+        <button class="tab-button" data-tab="options" onclick="switchTab('options')">📈 Options</button>
         <button class="tab-button" data-tab="prompts" onclick="switchTab('prompts')">🤖 AI Prompts</button>
       </div>
 
@@ -97,6 +98,15 @@
               </div>
             </div>
           {% endfor %}
+        </div>
+      </div>
+
+      <!-- Options Tab -->
+      <div id="tab-options" class="tab-content">
+        <div id="options-content">
+          <div style="text-align:center;padding:40px;color:#9ca3af">
+            Loading options data...
+          </div>
         </div>
       </div>
 
@@ -221,6 +231,7 @@
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/graph.js"></script>
   <script src="/static/js/prompts.js"></script>
+  <script src="/static/js/options.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>
