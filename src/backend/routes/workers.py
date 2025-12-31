@@ -3,6 +3,7 @@
 from flask import Blueprint, jsonify
 
 from src.workers import MARKET, DREAM, THINK
+from src.workers.options_worker import OPTIONS
 
 bp = Blueprint("workers", __name__, url_prefix="/api")
 
@@ -63,4 +64,26 @@ def think_stop():
 def think_step():
     """Execute a single think worker step."""
     THINK.step_once()
+    return jsonify({"ok": True})
+
+
+@bp.post("/options/start")
+def options_start():
+    """Start the options worker."""
+    if not OPTIONS.running:
+        OPTIONS.start()
+    return jsonify({"ok": True, "running": OPTIONS.running})
+
+
+@bp.post("/options/stop")
+def options_stop():
+    """Stop the options worker."""
+    OPTIONS.stop_now()
+    return jsonify({"ok": True, "running": OPTIONS.running})
+
+
+@bp.post("/options/step")
+def options_step():
+    """Execute a single options worker step."""
+    OPTIONS.step_once()
     return jsonify({"ok": True})

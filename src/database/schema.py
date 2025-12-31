@@ -25,6 +25,11 @@ CHANNEL_WEIGHTS = {
     "sentiment_coupled": 0.7,
     "narrative_supports": 0.5,
     "narrative_contradicts": 0.7,
+    # Options-specific channels
+    "options_hedges": 0.85,      # Put provides downside hedge for equity
+    "options_leverages": 0.80,   # Call provides leveraged upside exposure
+    "options_strategy": 0.75,    # Part of spread/combo strategy
+    "greek_exposure": 0.70,      # Delta/Vega correlation to underlying
 }
 
 
@@ -228,6 +233,68 @@ def init_db():
           parent_ticker TEXT,
           expansion_level INTEGER DEFAULT 0,
           notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS options_monitored (
+          option_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          underlying TEXT NOT NULL,
+          option_type TEXT NOT NULL,
+          strike REAL NOT NULL,
+          expiration TEXT NOT NULL,
+          contract_symbol TEXT,
+          added_at TEXT NOT NULL,
+          last_updated TEXT,
+          enabled INTEGER DEFAULT 1,
+          delta REAL,
+          gamma REAL,
+          theta REAL,
+          vega REAL,
+          volume INTEGER,
+          open_interest INTEGER,
+          implied_volatility REAL,
+          selection_reason TEXT,
+          UNIQUE(underlying, option_type, strike, expiration)
+        );
+
+        CREATE TABLE IF NOT EXISTS options_snapshots (
+          snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ts TEXT NOT NULL,
+          option_id INTEGER NOT NULL,
+          bid REAL,
+          ask REAL,
+          last REAL,
+          volume INTEGER,
+          open_interest INTEGER,
+          implied_volatility REAL,
+          delta REAL,
+          gamma REAL,
+          theta REAL,
+          vega REAL,
+          FOREIGN KEY(option_id) REFERENCES options_monitored(option_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS options_positions (
+          position_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          option_id INTEGER NOT NULL,
+          qty REAL NOT NULL,
+          avg_cost REAL NOT NULL,
+          last_price REAL NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(option_id),
+          FOREIGN KEY(option_id) REFERENCES options_monitored(option_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS options_trades (
+          trade_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ts TEXT NOT NULL,
+          option_id INTEGER NOT NULL,
+          side TEXT NOT NULL,
+          qty REAL NOT NULL,
+          price REAL NOT NULL,
+          notional REAL NOT NULL,
+          reason TEXT,
+          insight_id INTEGER,
+          FOREIGN KEY(option_id) REFERENCES options_monitored(option_id)
         );
         """)
         

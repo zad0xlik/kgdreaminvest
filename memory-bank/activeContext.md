@@ -70,7 +70,144 @@ LLM_MAX_TOKENS=4000  # Default, can be increased for larger responses
 
 #### LLM-Powered Portfolio Expansion (COMPLETED)
 
-### Latest Major Feature (December 29, 2025)
+### Latest Major Feature (December 30, 2025)
+
+#### Options Trading Intelligence Layer (COMPLETED)
+A comprehensive options monitoring and intelligence system that provides derivatives market insights to enhance trading strategies:
+
+**What Was Built:**
+1. **Options Worker** - Fourth independent background worker (~6 min cycles)
+   - Fetches option chains via yfinance for active investibles
+   - Filters by DTE range (14-60 days) and liquidity (500+ volume OR 1000+ OI)
+   - LLM selects top 3-5 options per ticker with reasoning
+   - Cycles through all investibles over time (sampling strategy)
+
+2. **Greeks Calculation Engine** - `src/market/greeks.py`
+   - Black-Scholes implementation for all Greeks
+   - Delta, Gamma, Theta, Vega, Rho calculations
+   - Handles both calls and puts
+   - Used when yfinance Greeks unavailable
+
+3. **Database Schema** - 4 new tables:
+   - `options_monitored` - LLM-selected options to track
+   - `options_snapshots` - Historical pricing and Greeks over time
+   - `options_positions` - Future use for actual trades
+   - `options_trades` - Future use for trade history
+
+4. **Knowledge Graph Integration**:
+   - New node types: `option_call`, `option_put`
+   - New edge channels: 
+     - `options_leverages` (0.80) - Calls for upside
+     - `options_hedges` (0.85) - Puts for protection
+     - `greek_exposure` (0.70) - Delta/Vega correlation
+     - `options_strategy` (0.75) - Spread components
+   - Node naming: `{TICKER}_{C/P}{STRIKE}_{MMDD}`
+   - Example: `AAPL_C180_0315` = AAPL $180 Call exp 3/15
+
+5. **Separate LLM Budget** - Independent OptionsBudget class
+   - 5 calls/min rate limit (separate from main budget)
+   - Prevents option analysis from exhausting worker budget
+   - Thread-safe sliding window tracking
+
+6. **Complete UI Integration**:
+   - New "📈 Options" tab in center panel
+   - Summary cards: monitored count, worker status, portfolio Greeks
+   - Sortable/filterable table with 9 columns
+   - Color-coded badges:
+     - Call/Put (green/red)
+     - ITM/ATM/OTM (green/yellow/gray)
+   - Greeks display with positive/negative color coding
+   - LLM reasoning displayed for each selection
+   - Detail panel shows full option contract information
+   - Auto-refreshrefresh every 60 seconds
+
+7. **Backend API** - 3 new endpoints:
+   - `GET /api/options` - All monitored options + aggregate Greeks
+   - `GET /api/options/history/<id>` - Pricing snapshots over time
+   - `POST /api/options/{start|stop|step}` - Worker controls
+
+**How It Enhances Trading Strategy:**
+
+The system provides **multi-dimensional intelligence** that Think Worker can use:
+
+1. **Volatility Regime Detection**:
+   ```
+   High IV → Market fear → Reduce risk exposure
+   Low IV → Complacency → Look for opportunities
+   ```
+   Graph Impact: High IV options get stronger edge weights
+
+2. **Institutional Positioning**:
+   ```
+   Put/Call OI Ratio > 1.5 → Institutions hedging (caution)
+   Put/Call OI Ratio < 0.7 → Bullish positioning (confidence)
+   ```
+   Graph Impact: Creates `options_hedges` edges showing defensive positioning
+
+3. **Mispricing Detection**:
+   ```
+   IV > Realized Vol * 1.3 → Options expensive vs reality
+   IV < Realized Vol * 0.8 → Options cheap (leverage opportunity)
+   ```
+   Graph Impact: Mispricing creates weaker `greek_exposure` edges
+
+4. **Sentiment & Momentum**:
+   ```
+   Delta-weighted OI > 0 → Net bullish positioning
+   Delta divergence → Potential reversal signal
+   ```
+   Graph Impact: Divergence weakens `options_leverages` correlation
+
+**Example Decision Flow:**
+1. AAPL stock flat, but put IV spiking
+2. Options Worker detects unusual put OI increase
+3. Graph strengthens `options_hedges` edges
+4. Dream Worker identifies: "Protective demand rising"
+5. Think Worker receives: "High hedging demand signal"
+6. Multi-Agent LLM decides: "Trim AAPL from 12% to 8%"
+
+**Configuration:**
+```env
+OPTIONS_ENABLED=true
+OPTIONS_MAX_ALLOCATION_PCT=10.0
+OPTIONS_WORKER_SPEED=0.17
+OPTIONS_MIN_VOLUME=500
+OPTIONS_MIN_OPEN_INTEREST=1000
+OPTIONS_MIN_DTE=14
+OPTIONS_MAX_DTE=60
+OPTIONS_LLM_CALLS_PER_MIN=5
+```
+
+**Guard Rails:**
+- Max 10% portfolio allocation to options
+- Max 3% in any single option
+- Liquidity requirements (500 volume OR 1000 OI)
+- DTE range keeps away from near-expiration and illiquid far dates
+
+**Files Created:**
+- `src/workers/options_worker.py` - Main options worker
+- `src/market/options_fetcher.py` - yfinance integration
+- `src/market/greeks.py` - Black-Scholes calculations
+- `src/llm/options_budget.py` - Separate rate limiter
+- `src/backend/routes/options.py` - API endpoints (178 lines)
+- `src/frontend/static/js/options.js` - Frontend logic (336 lines)
+- `src/prompts/options_prompts.json` - LLM selection prompts
+- `docs/OPTIONS_TRADING_DESIGN.md` - Complete technical docs
+
+**Files Modified:**
+- `src/backend/app.py` - Registered options blueprint
+- `src/backend/routes/workers.py` - Added worker controls
+- `src/frontend/templates/index.html` - Added options tab + script
+- `src/frontend/static/css/main.css` - Options styling (~200 lines)
+- `src/database/schema.py` - Added 4 options tables
+- `main.py` - Starts options worker
+- `README.md` - Comprehensive options documentation
+- `memory-bank/systemPatterns.md` - Options architecture patterns
+- `memory-bank/progress.md` - Options status tracking
+
+**Status:** ✅ COMPLETE - Options monitoring fully operational with UI integration
+
+### Previous Major Feature (December 29, 2025)
 
 #### LLM-Powered Portfolio Expansion (COMPLETED)
 A complete system for dynamically expanding the trading portfolio using AI-driven stock discovery:

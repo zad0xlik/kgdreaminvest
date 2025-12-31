@@ -409,3 +409,252 @@ h3 {
   font-size: 11px;
   color: #bfdbfe;
 }
+
+/* Options Tab Styles */
+.options-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.summary-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.summary-card.greeks-card {
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.summary-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: #a78bfa;
+  margin-bottom: 4px;
+}
+
+.summary-label {
+  font-size: 11px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.greeks-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.greek-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.greek-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #a78bfa;
+}
+
+.greek-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e5e7eb;
+}
+
+.greek-value.positive {
+  color: #34d399;
+}
+
+.greek-value.negative {
+  color: #f87171;
+}
+
+.options-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.options-filters select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.3);
+  color: #e5e7eb;
+  font-size: 13px;
+}
+
+.options-table-container {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.options-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.options-table th {
+  padding: 10px 8px;
+  background: rgba(167, 139, 250, 0.12);
+  color: #a78bfa;
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  user-select: none;
+}
+
+.options-table th:hover {
+  background: rgba(167, 139, 250, 0.18);
+}
+
+.options-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.option-row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.option-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.option-type-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.option-type-badge.call {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.option-type-badge.put {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.moneyness-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.moneyness-badge.itm {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+.moneyness-badge.atm {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.moneyness-badge.otm {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+.greeks-cell {
+  font-size: 11px;
+}
+
+.greeks-mini {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.greeks-mini span {
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.greeks-mini span.positive {
+  color: #34d399;
+}
+
+.greeks-mini span.negative {
+  color: #f87171;
+}
+
+.option-reasoning-row {
+  background: rgba(167, 139, 250, 0.06);
+}
+
+.reasoning-cell {
+  padding: 12px !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.reasoning-cell strong {
+  color: #a78bfa;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.reasoning-cell p {
+  margin: 0;
+  color: #e5e7eb;
+  line-height: 1.5;
+}
+
+.option-detail {
+  font-size: 12px;
+}
+
+.option-detail h3 {
+  color: #a78bfa;
+  font-size: 14px;
+  margin: 0 0 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 8px;
+}
+
+.detail-section {
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.detail-section strong {
+  color: #9ca3af;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.detail-section .positive {
+  color: #34d399;
+}
+
+.detail-section .negative {
+  color: #f87171;
+}

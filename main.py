@@ -8,6 +8,7 @@ import sys
 from src.config import Config
 from src.database import init_db, bootstrap_if_empty
 from src.workers import MARKET, DREAM, THINK
+from src.workers.options_worker import OPTIONS
 from src.backend import create_app
 
 # Setup logging
@@ -45,6 +46,9 @@ def main():
     if Config.AUTO_THINK and not THINK.running:
         logger.info("Auto-starting Think worker...")
         THINK.start()
+    if Config.OPTIONS_ENABLED and not OPTIONS.running:
+        logger.info("Auto-starting Options worker...")
+        OPTIONS.start()
 
     # Log configuration
     logger.info("=" * 60)
