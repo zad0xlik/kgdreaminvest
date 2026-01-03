@@ -1,4 +1,4 @@
-"""Paper trading execution with guard rails."""
+"""Trading execution with broker provider routing."""
 import logging
 import sqlite3
 from typing import Dict, Any, List
@@ -8,6 +8,44 @@ from src.database.operations import get_cash, set_cash
 from src.utils import utc_now
 
 logger = logging.getLogger("kginvest")
+
+
+def execute_trades(
+    conn: sqlite3.Connection,
+    decisions: List[Dict[str, Any]],
+    prices: Dict[str, Any],
+    reason: str,
+    insight_id: int
+) -> Dict[str, Any]:
+    """
+    Universal trading interface - routes to correct broker provider.
+    
+    Routes to paper trading (Yahoo+DB) or Alpaca based on Config.BROKER_PROVIDER.
+    
+    Args:
+        conn: Database connection
+        decisions: List of trade decisions with ticker, action, allocation_pct
+        prices: Dict mapping ticker to price data with 'current' price
+        reason: Reason string for trade log
+        insight_id: Associated insight ID
+        
+    Returns:
+        Dict with keys: executed (list of trades), skipped (list of reasons), cash (final balance)
+        
+    Example:
+        >>> decisions = [
+        ...     {"ticker": "AAPL", "action": "BUY", "allocation_pct": 5.0}
+        ... ]
+        >>> result = execute_trades(conn, decisions, prices, "test", 1)
+        >>> print(f"Executed {len(result['executed'])} trades via {Config.BROKER_PROVIDER}")
+    """
+    if Config.BROKER_PROVIDER == "alpaca":
+        from src.portfolio.alpaca_trading import execute_alpaca_trades
+        logger.info("Routing trades to Alpaca")
+        return execute_alpaca_trades(conn, decisions, prices, reason, insight_id)
+    else:
+        logger.info("Routing trades to paper trading")
+        return execute_paper_trades(conn, decisions, prices, reason, insight_id)
 
 
 def execute_paper_trades(

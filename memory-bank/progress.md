@@ -127,6 +127,37 @@
 - **Files Modified**: `src/backend/routes/api.py`, `src/frontend/templates/index.html`, `src/frontend/static/js/app.js`, `src/frontend/static/css/main.css`
 - **Reconciliation Results**: Successfully traced $500 start → $519.70 current (3.94% return, 13 trades, $1.13 realized + $18.57 unrealized gains)
 
+### ✅ Alpaca Broker Integration Foundation (NEW - Jan 3, 2026)
+- **Provider Pattern**: Configuration-driven routing between paper and live trading
+- **Configuration System**: Added `BROKER_PROVIDER`, `DATA_PROVIDER`, Alpaca credentials to Config
+- **Database Schema**: New `broker_config` table for persistent broker settings
+- **Alpaca Market Data Client** (`src/market/alpaca_client.py`):
+  - Drop-in replacement for Yahoo Finance data
+  - Historical bars, latest quotes, batch price fetching
+  - Thread-safe TTL caching (90-second default)
+  - Error handling with graceful fallbacks
+- **Alpaca Trading Client** (`src/portfolio/alpaca_trading.py`):
+  - Real broker trading execution (paper or live mode)
+  - Account sync (cash, buying power, portfolio value)
+  - Position sync (Alpaca → local database)
+  - Market order submission (BUY/SELL)
+  - ALL existing guard rails enforced:
+    - Position limits (14% max per symbol)
+    - Cycle limits (18% buy, 35% sell)
+    - Cash buffer (12% minimum)
+    - Notional minimums ($25 per trade)
+  - Order validation and error recovery
+- **Unified Trading Router** (`src/portfolio/trading.py`):
+  - `execute_trades()` - universal trading interface
+  - Automatic routing based on Config.BROKER_PROVIDER
+  - Backward compatible (existing code works unchanged)
+  - `execute_paper_trades()` preserved for Yahoo-only mode
+- **Dependencies**: alpaca-py v0.43.2 installed and integrated
+- **Environment Config**: Comprehensive Alpaca setup in `.env.example`
+- **Security**: API keys in environment variables, paper mode flag protection
+- **Status**: Phase 1 & 2 complete (foundation + core integration)
+- **Next Steps**: Settings UI tab, worker integration, testing
+
 ### ✅ Modern Development Setup
 - **Package Management**: uv with pyproject.toml configuration
 - **Code Quality**: Black, Ruff, MyPy tooling configured

@@ -34,6 +34,15 @@ class Config:
     OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
     OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     
+    # Broker Configuration
+    BROKER_PROVIDER = os.environ.get("BROKER_PROVIDER", "paper").lower()  # "paper" or "alpaca"
+    DATA_PROVIDER = os.environ.get("DATA_PROVIDER", "yahoo").lower()  # "yahoo" or "alpaca"
+    
+    # Alpaca API Configuration
+    ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY", "")
+    ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY", "")
+    ALPACA_PAPER_MODE = os.environ.get("ALPACA_PAPER_MODE", "true").lower() in ("1", "true", "yes")
+    
     # Options Trading Configuration
     OPTIONS_ENABLED = os.environ.get("OPTIONS_ENABLED", "false").lower() in ("1", "true", "yes")
     OPTIONS_MAX_ALLOCATION_PCT = float(os.environ.get("OPTIONS_MAX_ALLOCATION_PCT", "10.0"))
@@ -176,3 +185,10 @@ OPTIONS_LLM_CALLS_PER_MIN = Config.OPTIONS_LLM_CALLS_PER_MIN
 OPTIONS_MIN_TRADE_NOTIONAL = Config.OPTIONS_MIN_TRADE_NOTIONAL
 OPTIONS_MAX_SINGLE_OPTION_PCT = Config.OPTIONS_MAX_SINGLE_OPTION_PCT
 OPTIONS_INTERVAL = Config.OPTIONS_INTERVAL
+
+# Broker & Data Provider
+BROKER_PROVIDER = Config.BROKER_PROVIDER
+DATA_PROVIDER = Config.DATA_PROVIDER
+ALPACA_API_KEY = Config.ALPACA_API_KEY
+ALPACA_SECRET_KEY = Config.ALPACA_SECRET_KEY
+ALPACA_PAPER_MODE = Config.ALPACA_PAPER_MODE

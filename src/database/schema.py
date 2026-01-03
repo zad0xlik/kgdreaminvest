@@ -297,6 +297,17 @@ def init_db():
           insight_id INTEGER,
           FOREIGN KEY(option_id) REFERENCES options_monitored(option_id)
         );
+
+        CREATE TABLE IF NOT EXISTS broker_config (
+          id INTEGER PRIMARY KEY CHECK (id=1),
+          broker_provider TEXT NOT NULL DEFAULT 'paper',
+          data_provider TEXT NOT NULL DEFAULT 'yahoo',
+          alpaca_api_key TEXT,
+          alpaca_secret_key TEXT,
+          alpaca_paper_mode INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         """)
         
         # Seed initial cash if not present

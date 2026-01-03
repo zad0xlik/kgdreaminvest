@@ -194,21 +194,354 @@ class LLMBudget:
     def stats(self) -> dict:    # Monitoring
 ```
 
+## Broker & Data Provider Patterns (NEW - Jan 3, 2026)
+
+### Dual Provider Architecture
+The system implements a **Provider Pattern** for both data fetching and trade execution, mirroring the LLM provider design:
+
+```mermaid
+graph TB
+    subgraph "Configuration Layer"
+        ENV[.env File]
+        CONFIG[Config Class]
+    end
+    
+    subgraph "Data Provider Routing"
+        DPR[Data Provider Router]
+        YF[Yahoo Finance Client]
+        AC[Alpaca Data Client]
+    end
+    
+    subgraph "Broker Provider Routing"
+        BPR[Broker Provider Router]
+        PT[Paper Trading<br/>Yahoo Finance]
+        AT[Alpaca Trading<br/>Real/Paper]
+    end
+    
+    subgraph "Workers"
+        MW[Market Worker]
+        TW[Think Worker]
+    end
+    
+    ENV --> CONFIG
+    CONFIG --> DPR
+    CONFIG --> BPR
+    
+    DPR -->|DATA_PROVIDER=yahoo| YF
+    DPR -->|DATA_PROVIDER=alpaca| AC
+    
+    BPR -->|BROKER_PROVIDER=paper| PT
+    BPR -->|BROKER_PROVIDER=alpaca| AT
+    
+    MW --> DPR
+    TW --> BPR
+    
+    style CONFIG fill:#e3f2fd
+    style DPR fill:#fff3e0
+    style BPR fill:#fff3e0
+```
+
+### Pattern: Strategy Pattern for Broker Providers
+
+**Unified Trading Interface:**
+```python
+def execute_trades(decisions: List[Dict]) -> List[Dict]:
+    """Universal trading interface - routes to appropriate broker"""
+    if Config.BROKER_PROVIDER == "alpaca":
+        return execute_alpaca_trades(decisions)
+    else:
+        return execute_paper_trades(decisions)  # Default: Yahoo Finance
+```
+
+**Key Benefits:**
+- Single entry point for all trading logic
+- Configuration-driven routing (no code changes)
+- Backward compatible (existing code unchanged)
+- Easy to add new brokers (Interactive Brokers, TD Ameritrade, etc.)
+
+### Pattern: Independent Data & Broker Providers
+
+**Flexibility Through Separation:**
+```python
+# Configuration allows mixing providers
+DATA_PROVIDER = "yahoo"      # Use free Yahoo Finance data
+BROKER_PROVIDER = "alpaca"  # Execute trades through Alpaca
+
+# Or use Alpaca for everything
+DATA_PROVIDER = "alpaca"
+BROKER_PROVIDER = "alpaca"
+
+# Or paper trading only
+DATA_PROVIDER = "yahoo"
+BROKER_PROVIDER = "paper"
+```
+
+**Use Cases:**
+1. **Hybrid Approach**: Yahoo data (broader coverage) + Alpaca trading (real execution)
+2. **Cost Optimization**: Free data source + paid broker
+3. **Development/Testing**: Paper trading with production data sources
+4. **Future Expansion**: Add Polygon data + Alpaca trading, etc.
+
+### Alpaca Client Architecture
+
+**Market Data Client** (`src/market/alpaca_client.py`):
+```python
+class AlpacaDataClient:
+    def __init__(self):
+        self.client = StockHistoricalDataClient(api_key, secret_key)
+        self.cache = {}  # Thread-safe price cache
+        
+    def get_latest_bars(self, symbols: List[str]) -> Dict:
+        """Fetch OHLCV data for multiple symbols"""
+        request = StockBarsRequest(
+            symbol_or_symbols=symbols,
+            timeframe=TimeFrame.Day,
+            start=datetime.now() - timedelta(days=5)
+        )
+        return self.client.get_stock_bars(request)
+    
+    def last_close_many(self, symbols: List[str]) -> Dict[str, float]:
+        """Get latest close prices with caching"""
+        # Check cache first (TTL: 90 seconds)
+        # Fetch from API if stale
+        # Thread-safe cache updates
+```
+
+**Trading Client** (`src/portfolio/alpaca_trading.py`):
+```python
+class AlpacaTradingClient:
+    def __init__(self):
+        self.client = TradingClient(
+            api_key=api_key,
+            secret_key=secret_key,
+            paper=is_paper_mode  # Toggle paper/live
+        )
+    
+    def sync_account(self) -> Dict:
+        """Fetch account data from Alpaca"""
+        account = self.client.get_account()
+        return {
+            "cash": float(account.cash),
+            "buying_power": float(account.buying_power),
+            "portfolio_value": float(account.portfolio_value)
+        }
+    
+    def sync_positions(self) -> List[Dict]:
+        """Fetch all positions from Alpaca"""
+        positions = self.client.get_all_positions()
+        return [
+            {
+                "symbol": p.symbol,
+                "qty": float(p.qty),
+                "avg_entry": float(p.avg_entry_price),
+                "market_value": float(p.market_value)
+            }
+            for p in positions
+        ]
+    
+    def execute_alpaca_trades(self, decisions: List[Dict]) -> List[Dict]:
+        """Execute trades through Alpaca with guard rails"""
+        # 1. Sync account (get latest cash, buying power)
+        # 2. Apply ALL existing guard rails:
+        #    - Position limits (14% max per symbol)
+        #    - Cycle limits (18% buy, 35% sell)
+        #    - Cash buffer (12% minimum)
+        #    - Notional minimums ($25 per trade)
+        # 3. Submit market orders via Alpaca API
+        # 4. Validate order responses
+        # 5. Update local database
+        # 6. Return executed trades
+```
+
+### Pattern: Guard Rail Preservation
+
+**Critical Safety Pattern:**
+All existing paper trading guard rails are enforced BEFORE submitting to Alpaca:
+
+```python
+def execute_alpaca_trades(decisions):
+    # Sync with broker first
+    account = sync_account()
+    cash = account["cash"]
+    portfolio_value = account["portfolio_value"]
+    
+    # Apply guard rails (SAME as paper trading)
+    for decision in decisions:
+        # Position limit check
+        if decision["allocation_pct"] > Config.MAX_SYMBOL_WEIGHT_PCT:
+            decision["action"] = "HOLD"
+            decision["note"] = f"Exceeds {Config.MAX_SYMBOL_WEIGHT_PCT}% limit"
+            continue
+        
+        # Cycle limit check
+        total_buy_allocation = sum(d["allocation_pct"] for d in decisions if d["action"] == "BUY")
+        if total_buy_allocation > Config.MAX_BUY_EQUITY_PCT_PER_CYCLE:
+            # Reject or scale down
+            continue
+        
+        # Cash buffer check
+        required_cash = portfolio_value * Config.MIN_CASH_BUFFER_PCT / 100
+        if cash - notional < required_cash:
+            decision["action"] = "HOLD"
+            decision["note"] = "Insufficient cash buffer"
+            continue
+        
+        # Notional minimum check
+        if notional < Config.MIN_TRADE_NOTIONAL:
+            decision["action"] = "HOLD"
+            decision["note"] = f"Below ${Config.MIN_TRADE_NOTIONAL} minimum"
+            continue
+    
+    # Only now submit to Alpaca
+    for decision in approved_decisions:
+        order = MarketOrderRequest(
+            symbol=decision["symbol"],
+            qty=decision["qty"],
+            side=OrderSide.BUY if decision["action"] == "BUY" else OrderSide.SELL,
+            time_in_force=TimeInForce.DAY
+        )
+        response = client.submit_order(order)
+        # Validate response, handle errors
+```
+
+**Why This Pattern Matters:**
+- Same risk management for paper and live trading
+- No bypass of safety controls when going live
+- Confidence that live trading won't be more risky than paper
+- Easy to audit (single codebase for guard rails)
+
+### Pattern: Account Synchronization
+
+**Sync Before Trade:**
+```python
+def trade_cycle():
+    # 1. Sync account state from broker
+    account = sync_account()
+    db.update_portfolio("cash", account["cash"])
+    
+    # 2. Sync positions from broker
+    positions = sync_positions()
+    for position in positions:
+        db.upsert_position(position)
+    
+    # 3. Make trading decisions based on latest state
+    decisions = think_worker_decides()
+    
+    # 4. Execute trades
+    execute_trades(decisions)
+```
+
+**Why Sync Matters:**
+- Local database may drift from broker reality
+- Ensures guard rails use accurate cash/position data
+- Catches external trades (manual or other systems)
+- Reconciles any discrepancies
+
+### Pattern: Paper Mode Flag Protection
+
+**Safety Toggle:**
+```python
+# .env configuration
+ALPACA_PAPER_MODE=true   # Safe: Paper trading account
+ALPACA_PAPER_MODE=false  # DANGER: LIVE REAL MONEY
+
+# Config class automatically routes to correct endpoint
+if Config.ALPACA_PAPER_MODE:
+    base_url = "https://paper-api.alpaca.markets"
+else:
+    base_url = "https://api.alpaca.markets"
+```
+
+**UI Warning (Future):**
+```python
+if not Config.ALPACA_PAPER_MODE:
+    display_warning("⚠️ LIVE TRADING MODE - REAL MONEY AT RISK")
+    require_confirmation("Type 'I UNDERSTAND' to proceed")
+```
+
+### Database Schema Pattern
+
+**Broker Configuration Table:**
+```sql
+CREATE TABLE IF NOT EXISTS broker_config (
+    id INTEGER PRIMARY KEY,
+    provider TEXT NOT NULL,           -- 'paper' or 'alpaca'
+    api_key TEXT,                     -- Encrypted in production
+    secret_key TEXT,                  -- Encrypted in production
+    is_paper BOOLEAN DEFAULT 1,       -- Safety flag
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+```
+
+**Why Store in Database:**
+- Per-user broker configuration (future multi-user)
+- Audit trail of broker changes
+- Encryption at rest (future security)
+- API key rotation tracking
+
+### Error Handling Pattern
+
+**Graceful Degradation for Alpaca:**
+```python
+def execute_alpaca_trades(decisions):
+    try:
+        # Attempt Alpaca execution
+        account = sync_account()
+        # ... execute trades ...
+    except AlpacaAPIError as e:
+        logger.error(f"Alpaca API error: {e}")
+        # Fall back to paper trading for this cycle
+        return execute_paper_trades(decisions)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        # Do not trade if uncertain
+        return []
+```
+
+**Pattern Benefits:**
+- No complete system failure if Alpaca unavailable
+- Logged errors for debugging
+- Temporary fallback to paper mode
+- User notified of degraded operation
+
 ## Configuration Patterns
 
 ### Environment-Driven Configuration
 - **Provider Abstraction**: Ollama vs OpenRouter via `LLM_PROVIDER`
+- **Broker Abstraction**: Paper vs Alpaca via `BROKER_PROVIDER`
+- **Data Abstraction**: Yahoo vs Alpaca via `DATA_PROVIDER`
 - **Speed Controls**: Configurable worker intervals
 - **Risk Parameters**: Adjustable guard rail percentages
 - **Debug Modes**: Verbose logging and testing hooks
 
-### Pattern: **Strategy Pattern for LLM Providers**
+### Pattern: **Strategy Pattern for Providers**
+
+**LLM Providers:**
 ```python
 def llm_chat_json(system: str, user: str):
-    if LLM_PROVIDER == "openrouter":
+    if Config.LLM_PROVIDER == "openrouter":
         return openrouter_chat_json(system, user)
     else:
         return ollama_chat_json(system, user)
+```
+
+**Broker Providers:**
+```python
+def execute_trades(decisions: List[Dict]):
+    if Config.BROKER_PROVIDER == "alpaca":
+        return execute_alpaca_trades(decisions)
+    else:
+        return execute_paper_trades(decisions)
+```
+
+**Data Providers:**
+```python
+def fetch_market_data(symbols: List[str]):
+    if Config.DATA_PROVIDER == "alpaca":
+        return alpaca_client.last_close_many(symbols)
+    else:
+        return yahoo_client.last_close_many(symbols)
 ```
 
 ## Critical Implementation Paths

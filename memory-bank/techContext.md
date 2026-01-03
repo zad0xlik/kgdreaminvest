@@ -226,8 +226,15 @@ dependencies = [
     "pytz>=2023.3",         # Timezone handling
     "langchain-openai>=0.1.0",  # LLM integration
     "python-dotenv>=1.0.0",     # Environment management
+    "alpaca-py>=0.23.0",        # Alpaca broker integration (NEW - Jan 3, 2026)
 ]
 ```
+
+**Alpaca Integration** (NEW - Jan 3, 2026):
+- `alpaca-py v0.43.2` - Official Alpaca SDK for Python
+- Provides both market data and trading capabilities
+- Supports paper and live trading modes
+- REST API client with built-in authentication
 
 ### Development Dependencies
 ```toml
