@@ -542,3 +542,381 @@ Options data enables sophisticated strategies (not yet implemented):
 - **Cross-Asset Hedging:** Options on sector ETFs vs individual stocks
 
 The foundation is built - options are monitored, graphed, and available to the decision engine. Future iterations can leverage this intelligence for explicit options trading.
+
+## Portfolio Reconciliation & Transaction Tracking Pattern
+
+### Complete Audit Trail Architecture
+
+The system implements **Event Sourcing** principles for complete transaction tracking and reconciliation:
+
+```mermaid
+flowchart LR
+    subgraph "Transaction Storage"
+        DB[(SQLite Database)]
+        Trades[trades table<br/>Immutable history]
+        Positions[positions table<br/>Current state]
+        Portfolio[portfolio table<br/>Cash balance]
+    end
+    
+    subgraph "Analysis Layer"
+        API[/api/transactions<br/>Backend API]
+        Script[reconciliation_report.py<br/>CLI Tool]
+    end
+    
+    subgraph "Presentation Layer"
+        Chart[Chart.js Visualization<br/>Performance Timeline]
+        Table[Transaction Table<br/>Trade History]
+        Cards[Summary Cards<br/>Key Metrics]
+    end
+    
+    Trades --> API
+    Trades --> Script
+    Positions --> API
+    Portfolio --> API
+    
+    API --> Chart
+    API --> Table
+    API --> Cards
+    
+    Script --> Report[Text Report<br/>RECONCILIATION_SUMMARY.md]
+```
+
+### Portfolio Value Calculation Pattern
+
+**Pattern:** Reconstruct portfolio value at any point in time by replaying transactions
+
+```python
+# Track holdings with average cost basis
+holdings = {}  # symbol -> {qty, avg_cost}
+
+for trade in chronological_trades:
+    if trade.side == "BUY":
+        # Update average cost (weighted average)
+        old_qty = holdings[symbol]["qty"]
+        old_cost = holdings[symbol]["avg_cost"]
+        new_qty = old_qty + qty
+        total_cost = (old_qty * old_cost) + notional
+        holdings[symbol] = {
+            "qty": new_qty,
+            "avg_cost": total_cost / new_qty
+        }
+        running_cash -= notional
+        
+    elif trade.side == "SELL":
+        # Reduce position, maintain avg cost
+        holdings[symbol]["qty"] -= qty
+        running_cash += notional
+    
+    # Calculate portfolio value at this point
+    equity_value = sum(h["qty"] * h["avg_cost"] for h in holdings.values())
+    portfolio_value = running_cash + equity_value
+    
+    timeline.append({
+        "timestamp": trade.ts,
+        "portfolio_value": portfolio_value,
+        "cash": running_cash,
+        "equity": equity_value
+    })
+```
+
+**Key Insight:** This pattern enables:
+- Historical portfolio value reconstruction
+- Performance attribution analysis
+- Gain/loss calculation (realized vs unrealized)
+- Cash flow verification
+- Audit trail for compliance
+
+### Realized vs Unrealized Gain Calculation
+
+**Pattern:** Match sales to purchases using FIFO or weighted average cost
+
+```python
+def calculate_realized_gain(trades):
+    realized_gain = 0
+    
+    for sale in [t for t in trades if t.side == "SELL"]:
+        symbol = sale.symbol
+        
+        # Find all prior purchases of this symbol
+        purchases = [t for t in trades 
+                    if t.symbol == symbol 
+                    and t.side == "BUY" 
+                    and t.trade_id < sale.trade_id]
+        
+        # Calculate weighted average purchase price
+        total_qty = sum(p.qty for p in purchases)
+        total_cost = sum(p.notional for p in purchases)
+        avg_cost = total_cost / total_qty
+        
+        # Realized gain = (sale price - avg cost) * qty
+        realized_gain += sale.notional - (sale.qty * avg_cost)
+    
+    return realized_gain
+```
+
+**Pattern Benefits:**
+- Tax reporting accuracy
+- Performance measurement
+- Trading strategy evaluation
+- Compliance with accounting standards
+
+### API Design Pattern: Timeline Reconstruction
+
+**Endpoint:** `GET /api/transactions`
+
+**Response Structure:**
+```json
+{
+  "trades": [
+    {
+      "trade_id": 1,
+      "ts": "2025-12-30T10:15:00",
+      "symbol": "AAPL",
+      "side": "BUY",
+      "qty": 0.5,
+      "price": 200.00,
+      "notional": 100.00,
+      "cash_after": 400.00,
+      "reason": "Multi-agent decision"
+    }
+  ],
+  "timeline": [
+    {
+      "timestamp": "2025-12-30T10:15:00",
+      "portfolio_value": 500.00,
+      "cash": 400.00,
+      "equity": 100.00,
+      "trade": {
+        "symbol": "AAPL",
+        "side": "BUY",
+        "qty": 0.5,
+        "price": 200.00,
+        "notional": 100.00
+      }
+    }
+  ],
+  "summary": {
+    "start_balance": 500.00,
+    "current_cash": 60.43,
+    "current_equity": 459.27,
+    "current_total": 519.70,
+    "total_invested": 465.20,
+    "total_sold": 25.63,
+    "realized_gain": 1.13,
+    "unrealized_gain": 18.57,
+    "total_gain": 19.70,
+    "total_return_pct": 3.94,
+    "trade_count": 13
+  }
+}
+```
+
+**Pattern:** Single endpoint returns three views of the same data:
+1. **Raw Transactions** - Immutable event log
+2. **Portfolio Timeline** - Reconstructed state at each event
+3. **Summary Statistics** - Aggregate metrics
+
+### UI Visualization Pattern: Chart.js Time-Series
+
+**Pattern:** Multi-dataset chart combining line and scatter plots
+
+```javascript
+const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: timeline.map(t => new Date(t.timestamp)),
+        datasets: [
+            {
+                label: 'Portfolio Value',
+                data: timeline.map(t => t.portfolio_value),
+                type: 'line',
+                borderColor: '#a78bfa',
+                backgroundColor: 'rgba(167, 139, 250, 0.1)',
+                fill: true,
+                tension: 0.3
+            },
+            {
+                label: 'BUY',
+                data: buyTrades.map(t => ({x: t.timestamp, y: t.portfolio_value})),
+                type: 'scatter',
+                backgroundColor: '#10b981',
+                pointRadius: 8
+            },
+            {
+                label: 'SELL',
+                data: sellTrades.map(t => ({x: t.timestamp, y: t.portfolio_value})),
+                type: 'scatter',
+                backgroundColor: '#ef4444',
+                pointRadius: 8
+            }
+        ]
+    }
+});
+```
+
+**Pattern Benefits:**
+- Visual performance tracking over time
+- Trade execution points clearly marked
+- Interactive tooltips with trade details
+- Timezone-aware display
+- Responsive to window resizing
+
+### Reconciliation Verification Pattern
+
+**Pattern:** Two independent calculations that must match
+
+```python
+# Method 1: Sum of all trades
+total_invested = sum(t.notional for t in trades if t.side == "BUY")
+total_sold = sum(t.notional for t in trades if t.side == "SELL")
+calculated_cash = start_cash - total_invested + total_sold
+
+# Method 2: Database current state
+actual_cash = db.query("SELECT v FROM portfolio WHERE k='cash'")
+
+# Verification
+assert abs(calculated_cash - actual_cash) < 0.01, "Cash reconciliation mismatch!"
+```
+
+**Pattern:** Cross-validation ensures data integrity:
+- Event sourcing (trades) vs current state (portfolio table)
+- Calculated values vs database values
+- Timeline reconstruction vs snapshot data
+
+### Summary Card Pattern
+
+**Pattern:** Grid of metric cards with color-coded indicators
+
+```html
+<div class="summary-cards">
+  <div class="summary-card">
+    <div class="summary-label">Total Gain</div>
+    <div class="summary-value positive">$19.70</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">Total Return</div>
+    <div class="summary-value positive">+3.94%</div>
+  </div>
+</div>
+```
+
+**Styling Pattern:**
+```css
+.summary-value.positive { color: #10b981; }
+.summary-value.negative { color: #ef4444; }
+```
+
+**Pattern Benefits:**
+- At-a-glance portfolio health
+- Clear visual indicators (green/red)
+- Responsive grid layout
+- Hover effects for interactivity
+
+### Tab Loading Pattern: Lazy Loading
+
+**Pattern:** Load transaction data only when tab is viewed
+
+```javascript
+function switchTab(tabName) {
+    // ... tab switching logic ...
+    
+    if (tabName === 'transactions') {
+        loadTransactions();  // Fetch data on demand
+    }
+}
+
+async function loadTransactions() {
+    const data = await fetchJSON("/api/transactions");
+    renderTransactionsChart(data);
+    renderTransactionsTable(data);
+    renderTransactionsSummary(data);
+}
+```
+
+**Pattern Benefits:**
+- Reduces initial page load time
+- API calls only when needed
+- Data freshness ensured on tab view
+- Modular component architecture
+
+### Transaction Table Color-Coding Pattern
+
+**Pattern:** Visual differentiation using CSS borders and badges
+
+```css
+.transactions-table .trade-buy {
+  border-left: 3px solid #10b981;  /* Green for BUY */
+}
+
+.transactions-table .trade-sell {
+  border-left: 3px solid #ef4444;  /* Red for SELL */
+}
+```
+
+**Pattern:** Badges for action type:
+```html
+<span class="pill buy-badge">BUY</span>
+<span class="pill sell-badge">SELL</span>
+```
+
+**Pattern Benefits:**
+- Instant visual recognition
+- Consistent color semantics (green=buy, red=sell)
+- Enhanced scanability
+- Professional appearance
+
+### Data Consistency Pattern
+
+**Pattern:** Database as single source of truth, API as transformation layer
+
+```mermaid
+graph TD
+    DB[SQLite Database<br/>Single Source of Truth]
+    
+    DB --> API1[/api/state<br/>Current snapshot]
+    DB --> API2[/api/transactions<br/>Historical analysis]
+    DB --> Script[reconciliation_report.py<br/>CLI analysis]
+    
+    API1 --> UI1[Main Dashboard]
+    API2 --> UI2[Transactions Tab]
+    Script --> Report[Text Report]
+    
+    style DB fill:#e3f2fd
+```
+
+**Key Principles:**
+1. **Immutable Events**: Trades table is append-only
+2. **Derived State**: Portfolio value calculated from trades
+3. **Eventual Consistency**: Positions updated after trades execute
+4. **Audit Trail**: Complete transaction history always available
+
+### Use Case: Tax Reporting
+
+The reconciliation pattern enables accurate tax reporting:
+
+```python
+def generate_tax_report(year):
+    trades = get_trades_for_year(year)
+    
+    short_term_gains = 0
+    long_term_gains = 0
+    
+    for sale in [t for t in trades if t.side == "SELL"]:
+        purchase = find_matched_purchase(sale)
+        hold_days = (sale.ts - purchase.ts).days
+        gain = sale.notional - (sale.qty * purchase.price)
+        
+        if hold_days < 365:
+            short_term_gains += gain
+        else:
+            long_term_gains += gain
+    
+    return {
+        "short_term": short_term_gains,
+        "long_term": long_term_gains,
+        "total_proceeds": sum(s.notional for s in sales),
+        "cost_basis": sum(p.notional for p in matched_purchases)
+    }
+```
+
+This pattern provides the foundation for regulatory compliance and accurate financial reporting.

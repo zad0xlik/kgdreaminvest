@@ -182,7 +182,7 @@ def portfolio_state(conn: sqlite3.Connection, prices: Optional[Dict[str, Any]] =
             "avg_cost": avg,
             "pnl": pnl,
             "mv": mv,
-            "updated_at": r["updated_at"],
+            "updated_at": r["executed_at"] or r["updated_at"],  # Use executed_at (original purchase time)
             "type": "equity"
         })
     

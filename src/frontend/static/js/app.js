@@ -12,7 +12,30 @@ async function refreshAll() {
   document.getElementById("bw_qqq").textContent = st.latest.qqq;
   document.getElementById("bw_vix").textContent = st.latest.vix;
   document.getElementById("bw_uup").textContent = st.latest.uup;
-  document.getElementById("sig_line").textContent = st.latest.signals;
+  
+  // Update snapshot timestamp with timezone conversion
+  if (st.latest.timestamp) {
+    const ts = convertToUserTimezone(st.latest.timestamp);
+    const tzAbbr = getTimezoneAbbr();
+    document.getElementById("snapshot_time").textContent = `Updated: ${ts} ${tzAbbr}`;
+  }
+  
+  // Format and display signals as clean table
+  const signals = st.latest.signals || {};
+  const signalLabels = {
+    'risk_off': 'Risk-Off',
+    'rates_up': 'Rates Up',
+    'oil_shock': 'Oil Shock',
+    'semi_pulse': 'Semi Pulse'
+  };
+  
+  let signalsHtml = '';
+  for (const [key, value] of Object.entries(signals)) {
+    const label = signalLabels[key] || key;
+    const percentage = (value * 100).toFixed(1);
+    signalsHtml += `<div class="row"><div class="label">${label}</div><div class="value">${percentage}%</div></div>`;
+  }
+  document.getElementById("signals_table").innerHTML = signalsHtml || '<div class="small" style="color:#9ca3af">No signals available</div>';
 
   // Update portfolio
   document.getElementById("pf_cash").textContent = st.portfolio.cash;
@@ -39,11 +62,11 @@ async function refreshAll() {
   tr.className = "pill " + (st.auto_trade ? "on" : "off");
   tr.textContent = st.auto_trade ? "ON" : "OFF";
 
-  // Update positions table with both equities and options
+  // Update positions table with both equities and options (with timezone conversion)
   document.querySelector("#pos_table tbody").innerHTML = st.portfolio.positions.map(p => {
     const typeClass = p.type === 'option' ? 'option-badge' : 'equity-badge';
     const typeLabel = p.type === 'option' ? 'OPT' : 'STK';
-    const executionTime = p.updated_at ? p.updated_at.substring(0, 19).replace('T', ' ') : '—';
+    const executionTime = p.updated_at ? convertToUserTimezone(p.updated_at, false) : '—';
     const qtyDisplay = p.type === 'option' ? p.qty.toFixed(0) : p.qty.toFixed(3);
     
     return `<tr>
@@ -55,16 +78,18 @@ async function refreshAll() {
     </tr>`;
   }).join("");
 
-  // Update logs
+  // Update logs (with timezone conversion)
   document.getElementById("log_box").innerHTML = st.logs.map(l => {
-    return `<div class="log"><b>${l.actor}</b> · <span style="color:#a78bfa">${l.action}</span><br/><span class="small">${l.ts}</span><br/>${l.detail || ""}</div>`;
+    const timestamp = convertToUserTimezone(l.ts);
+    return `<div class="log"><b>${l.actor}</b> · <span style="color:#a78bfa">${l.action}</span><br/><span class="small">${timestamp}</span><br/>${l.detail || ""}</div>`;
   }).join("");
 
-  // Update insights
+  // Update insights (with timezone conversion)
   document.getElementById("insight_box").innerHTML = st.insights.map(ins => {
+    const timestamp = convertToUserTimezone(ins.ts);
     return `<div class="insight">
       <div class="title">${ins.title}</div>
-      <div class="small">${ins.ts} · status=${ins.status}</div>
+      <div class="small">${timestamp} · status=${ins.status}</div>
       <div style="margin-top:8px; white-space:pre-wrap;">${ins.body}</div>
       <div class="action"><b>Decisions:</b> <span class="small mono">${ins.decisions}</span></div>
       <div class="meta">
@@ -352,6 +377,13 @@ async function removeInvestible(ticker) {
 
 // Initialize app
 async function initApp() {
+  // Initialize timezone selector from localStorage
+  const savedTimezone = getUserTimezone();
+  const timezoneSelector = document.getElementById('timezone_selector');
+  if (timezoneSelector) {
+    timezoneSelector.value = savedTimezone;
+  }
+  
   await initGraph();
   await refreshAll();
   setInterval(refreshAll, 7000);
@@ -376,6 +408,8 @@ function switchTab(tabName) {
   // Load tab-specific content
   if (tabName === 'prompts') {
     loadPromptsEditor();
+  } else if (tabName === 'transactions') {
+    loadTransactions();
   }
 }
 

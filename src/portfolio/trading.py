@@ -182,10 +182,14 @@ def execute_paper_trades(
         qty_by_sym[sym] = new_qty
         mv_by_sym[sym] = new_qty * p
 
+        # Preserve executed_at for existing position, set it for new position
+        now = utc_now()
+        executed_at = row["executed_at"] if (row and row["executed_at"]) else now
+
         conn.execute(
-            "INSERT OR REPLACE INTO positions(symbol,qty,avg_cost,last_price,updated_at) "
-            "VALUES(?,?,?,?,?)",
-            (sym, float(new_qty), float(new_avg), float(p), utc_now())
+            "INSERT OR REPLACE INTO positions(symbol,qty,avg_cost,last_price,updated_at,executed_at) "
+            "VALUES(?,?,?,?,?,?)",
+            (sym, float(new_qty), float(new_avg), float(p), now, executed_at)
         )
         conn.execute(
             "INSERT INTO trades(ts,symbol,side,qty,price,notional,reason,insight_id) "

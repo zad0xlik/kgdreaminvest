@@ -167,7 +167,8 @@ def init_db():
           qty REAL NOT NULL,
           avg_cost REAL NOT NULL,
           last_price REAL NOT NULL,
-          updated_at TEXT NOT NULL
+          updated_at TEXT NOT NULL,
+          executed_at TEXT
         );
 
         CREATE TABLE IF NOT EXISTS trades (
@@ -543,3 +544,30 @@ def bootstrap_if_empty():
 
         conn.commit()
         logger.info("Bootstrap complete.")
+
+
+def migrate_add_executed_at():
+    """
+    Migration: Add executed_at column to positions table if it doesn't exist.
+    
+    This preserves the original purchase timestamp separate from update timestamp.
+    For existing positions, copies updated_at to executed_at as best guess.
+    """
+    with db_conn() as conn:
+        # Check if column already exists
+        cursor = conn.execute("PRAGMA table_info(positions)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'executed_at' in columns:
+            return  # Migration already applied
+        
+        logger.info("Running migration: Adding executed_at column to positions table")
+        
+        # Add the column
+        conn.execute("ALTER TABLE positions ADD COLUMN executed_at TEXT")
+        
+        # For existing positions, copy updated_at to executed_at as best estimate
+        conn.execute("UPDATE positions SET executed_at = updated_at WHERE executed_at IS NULL")
+        
+        conn.commit()
+        logger.info("Migration complete: executed_at column added")

@@ -688,3 +688,116 @@ h3 {
 .detail-section .negative {
   color: #f87171;
 }
+
+/* Transactions Tab Styles */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.summary-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease;
+}
+
+.summary-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(167, 139, 250, 0.3);
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #a78bfa;
+  margin-bottom: 4px;
+}
+
+.summary-value.small {
+  font-size: 16px;
+}
+
+.summary-label {
+  font-size: 11px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+/* Transactions Table */
+.transactions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.transactions-table thead {
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.transactions-table th {
+  padding: 12px 10px;
+  color: #a78bfa;
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.12);
+}
+
+.transactions-table th:first-child {
+  padding-left: 16px;
+}
+
+.transactions-table td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.transactions-table td:first-child {
+  padding-left: 16px;
+}
+
+.transactions-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.transactions-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.transactions-table .trade-buy {
+  border-left: 3px solid #10b981;
+}
+
+.transactions-table .trade-sell {
+  border-left: 3px solid #ef4444;
+}
+
+/* BUY/SELL Badges */
+.buy-badge, .sell-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.buy-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #86efac;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.sell-badge {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}

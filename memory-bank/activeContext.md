@@ -1,8 +1,152 @@
 # Active Context
 
-## Current Focus (December 2025)
+## Current Focus (January 2026)
 
 ### Primary Objective
+Building portfolio analysis and reconciliation tools to provide transparency into trading decisions and performance tracking.
+
+### Latest Major Feature (January 2-3, 2026)
+
+#### Portfolio Reconciliation & Transactions Tab (COMPLETED)
+A comprehensive transaction tracking and visualization system that provides complete transparency into portfolio performance:
+
+**Problem Identified:**
+- User noticed portfolio value discrepancy: Cash $60.43 + Equity $519.70 = $580.13 total (vs $500 start)
+- UI was displaying total portfolio value ($519.70) in the "Equity" field - misleading label
+- Needed way to reconcile all transactions from $500 start to current state
+
+**What Was Built:**
+
+1. **Reconciliation Analysis Script** (`reconciliation_report.py`):
+   - Queries all trades from database chronologically
+   - Calculates running cash balance after each trade
+   - Tracks cost basis and market value of positions
+   - Computes realized vs unrealized gains
+   - Generates comprehensive text-based report
+   - Run with: `uv run reconciliation_report.py`
+
+2. **Backend API Endpoint** (`/api/transactions`):
+   - Returns complete transaction history with timestamps
+   - Calculates portfolio value timeline (cash + equity at each trade)
+   - Tracks holdings and average cost basis over time
+   - Provides summary statistics:
+     - Total invested, total sold
+     - Realized gain (from sales), unrealized gain (from holdings)
+     - Total return percentage
+     - Trade count
+   - Response includes: `trades[]`, `timeline[]`, `summary{}`
+
+3. **Transactions Tab UI** - Complete frontend integration:
+   - **Summary Cards Grid**: 11 key metrics displayed as cards
+     - Start Balance, Current Total, Total Gain, Total Return %
+     - Total Trades, Invested, Sold
+     - Realized Gain, Unrealized Gain, Current Cash, Current Equity
+   - **Interactive Performance Chart**:
+     - Line chart showing portfolio value over time (Chart.js)
+     - Green dots mark BUY transactions
+     - Red dots mark SELL transactions
+     - Hover tooltips show exact trade details
+     - Timezone-aware timestamps
+     - Y-axis: Portfolio value ($), X-axis: Time
+   - **Transaction History Table**:
+     - Chronological list of all trades
+     - Columns: ID, Date/Time, Symbol, Side, Qty, Price, Amount, Cash After  
+     - Color-coded rows: Green left border for BUY, Red for SELL
+     - BUY/SELL pill badges for instant recognition
+     - Responsive design with hover effects
+
+4. **Chart.js Integration**:
+   - Added Chart.js v4.4.1 via CDN
+   - Added chartjs-adapter-date-fns for time-series support
+   - Multi-dataset chart: Line (portfolio value) + Scatter (trades)
+   - Custom tooltips with formatted currency
+   - Responsive canvas sizing
+
+**Reconciliation Results:**
+```
+Starting Balance:     $500.00
+Total Invested (BUY): $465.20
+Total Sold (SELL):    $25.63
+Net Cash Deployed:    $439.57
+
+Current Cash:         $60.43
+Current Equity:       $459.27
+Total Portfolio:      $519.70
+
+Total Gain:           $19.70
+Total Return:         +3.94%
+
+Realized Gain:        $1.13 (from PSNY partial sale)
+Unrealized Gain:      $18.57 (from current holdings)
+```
+
+**Technical Implementation:**
+
+*Files Created:*
+- `reconciliation_report.py` - CLI analysis tool (210 lines)
+- `RECONCILIATION_SUMMARY.md` - Human-readable reconciliation document
+- `src/frontend/static/js/transactions.js` - Frontend logic (285 lines)
+
+*Files Modified:*
+- `src/backend/routes/api.py` - Added `/api/transactions` endpoint (170 lines)
+- `src/frontend/templates/index.html` - Added transactions tab + Chart.js CDN
+- `src/frontend/static/js/app.js` - Added tab switch handler for transactions
+- `src/frontend/static/css/main.css` - Added styling (~110 lines)
+
+**Key Algorithms:**
+
+1. **Portfolio Value Timeline Calculation**:
+```python
+# Track holdings and calculate value at each trade
+holdings = {}  # symbol -> {qty, avg_cost}
+for trade in trades:
+    if side == "BUY":
+        # Update average cost
+        total_qty = holdings[symbol]["qty"] + qty
+        total_cost = (holdings[symbol]["qty"] * avg_cost) + notional
+        holdings[symbol] = {"qty": total_qty, "avg_cost": total_cost / total_qty}
+    else:  # SELL
+        holdings[symbol]["qty"] -= qty
+    
+    equity_value = sum(h["qty"] * h["avg_cost"] for h in holdings.values())
+    portfolio_value = running_cash + equity_value
+    timeline.append({"timestamp": ts, "portfolio_value": portfolio_value})
+```
+
+2. **Realized Gain Calculation**:
+```python
+# For each SELL, find matching BUY trades
+for trade in trades:
+    if trade["side"] == "SELL":
+        symbol_buys = [t for t in trades if t["symbol"] == symbol 
+                       and t["side"] == "BUY" and t["trade_id"] < trade["trade_id"]]
+        avg_buy_cost = sum(t["notional"]) / sum(t["qty"]) for t in symbol_buys
+        realized_gain += trade["notional"] - (trade["qty"] * avg_buy_cost)
+```
+
+**UI Integration:**
+- Tab loads on-demand when clicked (lazy loading pattern)
+- Matches existing UI theme (purple gradients, dark mode)
+- Responsive grid layout for summary cards
+- Smooth transitions and hover effects
+- Chart updates on timezone changes
+
+**Use Cases Unlocked:**
+1. **Performance Tracking**: See exact portfolio growth trajectory
+2. **Trade Analysis**: Identify which trades were profitable
+3. **Reconciliation**: Verify all transactions match expected cash flow
+4. **Audit Trail**: Complete history of every buy/sell decision
+5. **Tax Reporting**: Realized vs unrealized gains clearly separated
+
+**Configuration:** No new environment variables - uses existing database
+
+**Status:** ✅ COMPLETE - Full transaction tracking with beautiful visualization
+
+---
+
+## Previous Focus (December 2025)
+
+### Primary Objective (RESOLVED)
 **RESOLVED**: Fixed critical LLM truncation bug causing agents to output zero-allocation "risk-off" plans. Agents now generate real trading decisions with proper capital allocation.
 
 ### Critical Bug Fix (December 29, 2025)

@@ -85,6 +85,48 @@
 - **Configuration**: 8 new environment variables for fine-tuned control
 - **Guard Rails**: 10% max portfolio allocation, liquidity requirements (500+ volume OR 1000+ OI), DTE range (14-60 days)
 
+### ✅ Portfolio Reconciliation & Transactions Tab (NEW - Jan 2-3, 2026)
+- **Transaction Analysis**: Complete trade-by-trade reconciliation from start to current state
+- **Reconciliation Script** (`reconciliation_report.py`):
+  - CLI tool for detailed portfolio analysis
+  - Running cash balance tracking after each trade
+  - Cost basis and market value calculations
+  - Realized vs unrealized gain separation
+  - Comprehensive text-based reporting
+- **Backend API**: `/api/transactions` endpoint
+  - Returns complete trade history with timestamps
+  - Calculates portfolio value timeline (cash + equity at each point)
+  - Tracks holdings and average cost over time
+  - Summary statistics (invested, sold, gains, returns)
+  - Response structure: `trades[]`, `timeline[]`, `summary{}`
+- **Interactive UI** - New "💰 Transactions" tab:
+  - **Summary Cards Grid**: 11 key metrics (start balance, total gain, return %, realized/unrealized gains, etc.)
+  - **Performance Chart**: Chart.js visualization showing:
+    - Line chart of portfolio value over time
+    - Green dots for BUY transactions
+    - Red dots for SELL transactions
+    - Interactive tooltips with trade details
+    - Timezone-aware timestamps
+  - **Transaction Table**: Chronological trade history
+    - Columns: ID, Date/Time, Symbol, Side, Qty, Price, Amount, Cash After
+    - Color-coded rows (green border for BUY, red for SELL)
+    - BUY/SELL pill badges
+    - Responsive design with hover effects
+- **Chart.js Integration**: 
+  - v4.4.1 with date-fns adapter for time-series
+  - Multi-dataset chart (line + scatter)
+  - Custom currency formatting
+  - Responsive canvas sizing
+- **Use Cases Enabled**:
+  - Performance tracking and portfolio growth visualization
+  - Trade-by-trade profitability analysis
+  - Complete transaction reconciliation and audit trail
+  - Tax reporting (realized vs unrealized gains clearly separated)
+  - Cash flow verification
+- **Files Created**: `reconciliation_report.py`, `RECONCILIATION_SUMMARY.md`, `src/frontend/static/js/transactions.js`
+- **Files Modified**: `src/backend/routes/api.py`, `src/frontend/templates/index.html`, `src/frontend/static/js/app.js`, `src/frontend/static/css/main.css`
+- **Reconciliation Results**: Successfully traced $500 start → $519.70 current (3.94% return, 13 trades, $1.13 realized + $18.57 unrealized gains)
+
 ### ✅ Modern Development Setup
 - **Package Management**: uv with pyproject.toml configuration
 - **Code Quality**: Black, Ruff, MyPy tooling configured
