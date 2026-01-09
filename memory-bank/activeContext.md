@@ -1050,7 +1050,7 @@ EXPANSION_LLM_CALLS_PER_MIN=10
 ```env
 LLM_PROVIDER=openrouter
 DREAM_MODEL=kwaipilot/kat-coder-pro:free
-OPENROUTER_API_KEY=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
+OPENROUTER_API_KEY=your-openrouter-api-key-here  # from .env (not committed)
 START_CASH=500.0
 LLM_CALLS_PER_MIN=10
 ```

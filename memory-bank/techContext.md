@@ -75,7 +75,7 @@ uv run pytest
 ### OpenRouter (Recommended)
 ```env
 LLM_PROVIDER=openrouter
-OPENROUTER_API_KEY=sk-or-v1-your-key-here
+OPENROUTER_API_KEY=your-openrouter-api-key-here
 DREAM_MODEL=kwaipilot/kat-coder-pro:free
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 ```
