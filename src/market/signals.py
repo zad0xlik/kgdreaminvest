@@ -17,6 +17,10 @@ def compute_signals_from_bells(
     - oil_shock: Higher when crude spikes
     - semi_pulse: Higher when semis show strength
     
+    Uses smart fallback logic:
+    - Prefers Yahoo-specific symbols (^VIX, ^TNX, CL=F) when available
+    - Falls back to ETF proxies (VXX, IEF, USO) otherwise
+    
     Args:
         prices: Dict mapping ticker to price data with 'change_pct' key
         bellwethers: Optional list of bellwether tickers to use. If None,
@@ -42,14 +46,32 @@ def compute_signals_from_bells(
         """Helper to get change_pct safely."""
         return float(prices.get(sym, {}).get("change_pct", 0.0) or 0.0)
 
-    # Get bellwether changes (gracefully handle missing tickers)
-    vix = ch("^VIX")
+    # Get bellwether changes with smart fallback (prefer Yahoo-specific, use ETF proxies as backup)
+    # Volatility: prefer ^VIX index, fall back to VXX ETF
+    vix = ch("^VIX") if "^VIX" in prices else ch("VXX")
+    
+    # Standard equities
     spy = ch("SPY")
     qqq = ch("QQQ")
     tlt = ch("TLT")
-    uup = ch("UUP")
-    tnx = ch("^TNX")
-    oil = ch("CL=F")
+    
+    # USD strength: prefer DX-Y.NYB dollar index, fall back to UUP ETF
+    usd = ch("DX-Y.NYB") if "DX-Y.NYB" in prices else ch("UUP")
+    
+    # 10Y yield: prefer ^TNX direct yield, fall back to IEF bond ETF (inverse relationship)
+    # Note: IEF moves inversely to yields, so we need to handle this difference
+    if "^TNX" in prices:
+        tnx = ch("^TNX")
+    elif "IEF" in prices:
+        # IEF moves opposite to yields, so negate it
+        tnx = -ch("IEF")
+    else:
+        tnx = 0.0
+    
+    # Oil: prefer CL=F futures, fall back to USO fund
+    oil = ch("CL=F") if "CL=F" in prices else ch("USO")
+    
+    # Semiconductors
     tsm = ch("TSM")
 
     # Normalize and combine (heuristic formulas)
@@ -57,7 +79,7 @@ def compute_signals_from_bells(
     
     # Risk-off: VIX up, USD up, equities down, bonds up
     risk_off = clamp01(
-        0.50 + 0.06 * vix + 0.05 * uup - 0.05 * spy - 0.03 * qqq + 0.03 * tlt
+        0.50 + 0.06 * vix + 0.05 * usd - 0.05 * spy - 0.03 * qqq + 0.03 * tlt
     )
     
     # Rates up: 10Y yield up, bonds down

@@ -9,6 +9,7 @@ from src.config import Config
 from src.database import init_db, bootstrap_if_empty
 from src.workers import MARKET, DREAM, THINK
 from src.workers.options_worker import OPTIONS
+from src.workers.options_think_worker import OPTIONS_THINK
 from src.backend import create_app
 
 # Setup logging
@@ -36,6 +37,27 @@ def main():
     init_db()
     bootstrap_if_empty()
 
+    # Sync with Alpaca if using Alpaca broker
+    if Config.BROKER_PROVIDER == "alpaca":
+        logger.info("Syncing with Alpaca account...")
+        try:
+            from src.database import db_conn
+            from src.portfolio.alpaca_stocks_trading import sync_alpaca_account, sync_alpaca_positions
+            
+            with db_conn() as conn:
+                account = sync_alpaca_account(conn)
+                if account:
+                    logger.info(f"  Alpaca Cash: ${account['cash']:.2f}")
+                    logger.info(f"  Portfolio Value: ${account['portfolio_value']:.2f}")
+                    
+                    positions = sync_alpaca_positions(conn)
+                    logger.info(f"  Synced {len(positions)} positions from Alpaca")
+                else:
+                    logger.warning("  Failed to sync Alpaca account - will continue without sync")
+        except Exception as e:
+            logger.error(f"  Alpaca sync failed: {e}")
+            logger.warning("  Continuing without Alpaca sync. Check your API keys and connection.")
+
     # Start workers if auto-enabled
     if Config.AUTO_MARKET and not MARKET.running:
         logger.info("Auto-starting Market worker...")
@@ -49,6 +71,9 @@ def main():
     if Config.OPTIONS_ENABLED and not OPTIONS.running:
         logger.info("Auto-starting Options worker...")
         OPTIONS.start()
+    if Config.OPTIONS_ENABLED and not OPTIONS_THINK.running:
+        logger.info("Auto-starting Options Think worker...")
+        OPTIONS_THINK.start()
 
     # Log configuration
     logger.info("=" * 60)

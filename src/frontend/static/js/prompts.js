@@ -30,7 +30,8 @@ function getCategoryDisplayName(category) {
   const names = {
     'expansion': 'Portfolio Expansion',
     'dream': 'Dream Worker (KG Edges)',
-    'think': 'Think Worker (Trading Committee)'
+    'think': 'Think Worker (Trading Committee)',
+    'options': 'Options Workers'
   };
   return names[category] || category;
 }

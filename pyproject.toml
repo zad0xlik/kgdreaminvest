@@ -32,6 +32,7 @@ dependencies = [
     "pytz>=2023.3",
     "langchain-openai>=0.1.0",
     "python-dotenv>=1.0.0",
+    "alpaca-py>=0.23.0",
 ]
 
 [project.optional-dependencies]

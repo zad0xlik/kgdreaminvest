@@ -25,11 +25,20 @@ CHANNEL_WEIGHTS = {
     "sentiment_coupled": 0.7,
     "narrative_supports": 0.5,
     "narrative_contradicts": 0.7,
-    # Options-specific channels
+    # Options-specific channels (underlying relationship)
     "options_hedges": 0.85,      # Put provides downside hedge for equity
     "options_leverages": 0.80,   # Call provides leveraged upside exposure
     "options_strategy": 0.75,    # Part of spread/combo strategy
     "greek_exposure": 0.70,      # Delta/Vega correlation to underlying
+    # Options cross-correlation channels
+    "iv_correlates": 0.75,       # IV moves together (volatility clustering)
+    "iv_inverse": 0.75,          # IV inverse correlation
+    "delta_flow": 0.70,          # Directional alignment via delta
+    "vega_exposure": 0.70,       # Shared volatility sensitivity
+    "cross_underlying_hedge": 0.80,  # Options hedge across underlyings
+    "spread_strategy": 0.75,     # Part of vertical/horizontal spread
+    "collar_strategy": 0.85,     # Put+Call collar relationship
+    "vol_regime_coupled": 0.75,  # Move together in vol regime changes
 }
 
 
@@ -167,7 +176,8 @@ def init_db():
           qty REAL NOT NULL,
           avg_cost REAL NOT NULL,
           last_price REAL NOT NULL,
-          updated_at TEXT NOT NULL
+          updated_at TEXT NOT NULL,
+          executed_at TEXT
         );
 
         CREATE TABLE IF NOT EXISTS trades (
@@ -295,6 +305,17 @@ def init_db():
           reason TEXT,
           insight_id INTEGER,
           FOREIGN KEY(option_id) REFERENCES options_monitored(option_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS broker_config (
+          id INTEGER PRIMARY KEY CHECK (id=1),
+          broker_provider TEXT NOT NULL DEFAULT 'paper',
+          data_provider TEXT NOT NULL DEFAULT 'yahoo',
+          alpaca_api_key TEXT,
+          alpaca_secret_key TEXT,
+          alpaca_paper_mode INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
         """)
         
@@ -543,3 +564,30 @@ def bootstrap_if_empty():
 
         conn.commit()
         logger.info("Bootstrap complete.")
+
+
+def migrate_add_executed_at():
+    """
+    Migration: Add executed_at column to positions table if it doesn't exist.
+    
+    This preserves the original purchase timestamp separate from update timestamp.
+    For existing positions, copies updated_at to executed_at as best guess.
+    """
+    with db_conn() as conn:
+        # Check if column already exists
+        cursor = conn.execute("PRAGMA table_info(positions)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'executed_at' in columns:
+            return  # Migration already applied
+        
+        logger.info("Running migration: Adding executed_at column to positions table")
+        
+        # Add the column
+        conn.execute("ALTER TABLE positions ADD COLUMN executed_at TEXT")
+        
+        # For existing positions, copy updated_at to executed_at as best estimate
+        conn.execute("UPDATE positions SET executed_at = updated_at WHERE executed_at IS NULL")
+        
+        conn.commit()
+        logger.info("Migration complete: executed_at column added")

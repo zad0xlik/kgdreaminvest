@@ -1,3 +1,164 @@
+# 🧠 The Core Concept: Learning Through Graph-Based "Dreaming"
+
+> **This repository explores AI learning through knowledge graphs** — using stocks and options 
+> merely as a rich data domain to evolve concepts of machine reasoning and problem-solving.
+
+## Observe → Dream (KG) → Think (Plans)
+
+The system implements a continuous cognitive loop inspired by how understanding emerges from 
+connecting disparate information:
+
+**1. OBSERVE** — Market data flows in continuously (prices, indicators, sentiment)
+- Implementation: [`src/workers/market_worker.py`](src/workers/market_worker.py)
+
+**2. DREAM (Knowledge Graph)** — The "dreaming" phase draws connections:
+- Nodes represent entities (stocks, indices, options, bellwethers)
+- Edges form through **correlation analysis** and **LLM-enhanced labeling**
+- Channels capture nuanced relationships: `correlates`, `drives`, `hedges`, `leads`, `lags`
+- The graph **evolves continuously** as new patterns emerge
+- Implementation: [`src/workers/dream_worker.py`](src/workers/dream_worker.py)
+- Prompts: [`src/prompts/dream_prompts.json`](src/prompts/dream_prompts.json)
+- Deep dive: [`docs/OPTIONS_DREAM_INTEGRATION.md`](docs/OPTIONS_DREAM_INTEGRATION.md)
+
+**3. THINK (Plans)** — Multi-agent committees synthesize graph intelligence into decisions
+- Implementation: [`src/workers/think_worker.py`](src/workers/think_worker.py)
+
+This isn't primarily about trading — it's about **how AI systems can learn to recognize patterns, 
+form hypotheses, and make decisions** by continuously building and traversing relationship graphs.
+
+### Key Relationship Channels
+
+The dream process labels edges with semantic channels (from [`dream_prompts.json`](src/prompts/dream_prompts.json)):
+
+| Channel | Meaning |
+|---------|---------|
+| `correlates` | Prices move together |
+| `inverse_correlates` | Prices move opposite |
+| `drives` | A causally influences B |
+| `leads` / `lags` | Temporal relationship |
+| `hedges` | Provides downside protection |
+| `options_leverages` | Derivative exposure |
+| `iv_correlates` | Implied volatility relationship |
+
+📖 **Architecture Details**: [`memory-bank/systemPatterns.md`](memory-bank/systemPatterns.md) | [`memory-bank/productContext.md`](memory-bank/productContext.md)
+
+### How Nodes + Channels Interact Through Correlation
+
+```mermaid
+flowchart TB
+    subgraph DataFlow["📥 Data Flow"]
+        Prices[("Price History<br/>60 periods")]
+        IVs[("IV History<br/>30 periods")]
+    end
+
+    subgraph Correlation["🔢 Correlation Engine"]
+        direction TB
+        PriceCorr["corr(a, b)<br/>Pearson on % returns"]
+        IVCorr["iv_corr(a, b)<br/>Pearson on raw IVs"]
+        DeltaAlign["delta_alignment()<br/>Directional match"]
+        VegaSim["vega_similarity()<br/>Vol sensitivity"]
+    end
+
+    subgraph Nodes["🔵 Knowledge Graph Nodes"]
+        direction LR
+        Investible["📈 Investible<br/>(AAPL, NVDA...)"]
+        Bellwether["📊 Bellwether<br/>(SPY, ^VIX...)"]
+        OptionCall["📗 Option Call"]
+        OptionPut["📕 Option Put"]
+    end
+
+    subgraph Channels["🔗 Edge Channels (0.1 → 1.0 strength)"]
+        direction TB
+        
+        subgraph PriceChannels["Price-Based"]
+            PC1["correlates"]
+            PC2["inverse_correlates"]
+            PC3["leads / lags"]
+        end
+        
+        subgraph VolChannels["Volatility-Based"]
+            VC1["iv_correlates"]
+            VC2["vol_regime_coupled"]
+            VC3["vega_exposure"]
+        end
+        
+        subgraph SemanticChannels["LLM-Enhanced"]
+            SC1["supply_chain_linked"]
+            SC2["sentiment_coupled"]
+            SC3["drives / results_from"]
+        end
+    end
+
+    subgraph Dream["🌙 Dream Worker Loop (~4 min)"]
+        direction TB
+        D1["1. Random Pair<br/>inv↔bw / opt↔bw / opt↔opt"]
+        D2["2. Compute Correlation<br/>Pearson(returns)"]
+        D3{"3. |corr| > 0.25?"}
+        D4["4. Heuristic Channels<br/>Based on sign/magnitude"]
+        D5{"5. LLM? (30% chance)"}
+        D6["6. LLM Labels Edge"]
+        D7["7. Update Graph<br/>weight + channels"]
+    end
+
+    Prices --> PriceCorr
+    IVs --> IVCorr
+    
+    PriceCorr --> D2
+    IVCorr --> D2
+    DeltaAlign --> D2
+    VegaSim --> D2
+    
+    D1 --> D2 --> D3
+    D3 -->|Yes| D4 --> D5
+    D3 -->|No| D1
+    D5 -->|No| D7
+    D5 -->|Yes| D6 --> D7
+    D7 --> D1
+    
+    Investible -.->|paired| Bellwether
+    OptionCall -.->|paired| Bellwether
+    OptionPut -.->|paired| OptionCall
+    
+    D4 --> PriceChannels
+    D4 --> VolChannels
+    D6 --> SemanticChannels
+```
+
+#### 🧠 Step-by-Step: Edge Formation
+
+1. **Correlation Computation** ([`correlation.py`](src/knowledge_graph/correlation.py)):
+   ```
+   corr = Pearson(returns_A[-60:], returns_B[-60:])  →  value ∈ [-1.0, +1.0]
+   ```
+
+2. **Heuristic Channel Assignment** (if `|corr| > 0.25`):
+   | Correlation | Channel | Strength |
+   |-------------|---------|----------|
+   | +0.25 → +1.0 | `correlates` | `0.35 + 0.75×|corr|` |
+   | -0.25 → -1.0 | `inverse_correlates` | `0.35 + 0.75×|corr|` |
+   | SPY/QQQ pair | `liquidity_coupled` | `0.25 + 0.8×|corr|` |
+
+3. **LLM Enhancement** (30-50% of cycles via [`dream_prompts.json`](src/prompts/dream_prompts.json)):
+   - Adds semantic channels: `drives:AAPL->SPY`, `supply_chain_linked`
+   - Returns JSON: `{"channels": {"correlates": 0.85, "drives:AAPL->SPY": 0.60}, "note": "..."}`
+
+4. **Edge Weight** = mean of all channel strengths
+
+#### 📈 Example: AAPL ↔ SPY Edge Evolution
+
+```
+Cycle 1:  corr = +0.72
+          → correlates: 0.89, liquidity_coupled: 0.83
+          
+Cycle 5:  corr = +0.68, LLM triggered
+          → LLM adds: supply_chain_linked: 0.45
+          
+Result:   AAPL --[correlates:0.87, liquidity_coupled:0.79, supply_chain_linked:0.45]--> SPY
+          weight: 0.70  |  top_channel: "correlates"  |  assessments: 5
+```
+
+---
+
 # KGDreamInvest (Paper) — Multi-Agent Allocator + Investing Knowledge Graph + GUI
 
 > **Forked from**: [DormantOne/kgdreaminvest](https://github.com/DormantOne/kgdreaminvest)  

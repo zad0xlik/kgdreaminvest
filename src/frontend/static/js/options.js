@@ -183,7 +183,7 @@ function renderOptionRow(opt) {
             <td>${(opt.iv * 100).toFixed(1)}%</td>
             <td>
                 ${opt.executed ? 
-                    `<span class="pill on" style="font-size:9px">EXECUTED</span><br/><span class="small">${opt.position_qty} @ $${opt.avg_cost.toFixed(2)}</span><br/><span class="small">${opt.executed_at ? opt.executed_at.substring(0,19).replace('T',' ') : ''}</span>` : 
+                    `<span class="pill on" style="font-size:9px">EXECUTED</span><br/><span class="small">${opt.position_qty} @ $${opt.avg_cost.toFixed(2)}</span><br/><span class="small">${opt.executed_at ? convertToUserTimezone(opt.executed_at, false) : ''}</span>` : 
                     `<span class="pill off" style="font-size:9px">MONITORED</span>`
                 }
             </td>

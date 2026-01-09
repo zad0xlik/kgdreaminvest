@@ -194,21 +194,354 @@ class LLMBudget:
     def stats(self) -> dict:    # Monitoring
 ```
 
+## Broker & Data Provider Patterns (NEW - Jan 3, 2026)
+
+### Dual Provider Architecture
+The system implements a **Provider Pattern** for both data fetching and trade execution, mirroring the LLM provider design:
+
+```mermaid
+graph TB
+    subgraph "Configuration Layer"
+        ENV[.env File]
+        CONFIG[Config Class]
+    end
+    
+    subgraph "Data Provider Routing"
+        DPR[Data Provider Router]
+        YF[Yahoo Finance Client]
+        AC[Alpaca Data Client]
+    end
+    
+    subgraph "Broker Provider Routing"
+        BPR[Broker Provider Router]
+        PT[Paper Trading<br/>Yahoo Finance]
+        AT[Alpaca Trading<br/>Real/Paper]
+    end
+    
+    subgraph "Workers"
+        MW[Market Worker]
+        TW[Think Worker]
+    end
+    
+    ENV --> CONFIG
+    CONFIG --> DPR
+    CONFIG --> BPR
+    
+    DPR -->|DATA_PROVIDER=yahoo| YF
+    DPR -->|DATA_PROVIDER=alpaca| AC
+    
+    BPR -->|BROKER_PROVIDER=paper| PT
+    BPR -->|BROKER_PROVIDER=alpaca| AT
+    
+    MW --> DPR
+    TW --> BPR
+    
+    style CONFIG fill:#e3f2fd
+    style DPR fill:#fff3e0
+    style BPR fill:#fff3e0
+```
+
+### Pattern: Strategy Pattern for Broker Providers
+
+**Unified Trading Interface:**
+```python
+def execute_trades(decisions: List[Dict]) -> List[Dict]:
+    """Universal trading interface - routes to appropriate broker"""
+    if Config.BROKER_PROVIDER == "alpaca":
+        return execute_alpaca_trades(decisions)
+    else:
+        return execute_paper_trades(decisions)  # Default: Yahoo Finance
+```
+
+**Key Benefits:**
+- Single entry point for all trading logic
+- Configuration-driven routing (no code changes)
+- Backward compatible (existing code unchanged)
+- Easy to add new brokers (Interactive Brokers, TD Ameritrade, etc.)
+
+### Pattern: Independent Data & Broker Providers
+
+**Flexibility Through Separation:**
+```python
+# Configuration allows mixing providers
+DATA_PROVIDER = "yahoo"      # Use free Yahoo Finance data
+BROKER_PROVIDER = "alpaca"  # Execute trades through Alpaca
+
+# Or use Alpaca for everything
+DATA_PROVIDER = "alpaca"
+BROKER_PROVIDER = "alpaca"
+
+# Or paper trading only
+DATA_PROVIDER = "yahoo"
+BROKER_PROVIDER = "paper"
+```
+
+**Use Cases:**
+1. **Hybrid Approach**: Yahoo data (broader coverage) + Alpaca trading (real execution)
+2. **Cost Optimization**: Free data source + paid broker
+3. **Development/Testing**: Paper trading with production data sources
+4. **Future Expansion**: Add Polygon data + Alpaca trading, etc.
+
+### Alpaca Client Architecture
+
+**Market Data Client** (`src/market/alpaca_client.py`):
+```python
+class AlpacaDataClient:
+    def __init__(self):
+        self.client = StockHistoricalDataClient(api_key, secret_key)
+        self.cache = {}  # Thread-safe price cache
+        
+    def get_latest_bars(self, symbols: List[str]) -> Dict:
+        """Fetch OHLCV data for multiple symbols"""
+        request = StockBarsRequest(
+            symbol_or_symbols=symbols,
+            timeframe=TimeFrame.Day,
+            start=datetime.now() - timedelta(days=5)
+        )
+        return self.client.get_stock_bars(request)
+    
+    def last_close_many(self, symbols: List[str]) -> Dict[str, float]:
+        """Get latest close prices with caching"""
+        # Check cache first (TTL: 90 seconds)
+        # Fetch from API if stale
+        # Thread-safe cache updates
+```
+
+**Trading Client** (`src/portfolio/alpaca_trading.py`):
+```python
+class AlpacaTradingClient:
+    def __init__(self):
+        self.client = TradingClient(
+            api_key=api_key,
+            secret_key=secret_key,
+            paper=is_paper_mode  # Toggle paper/live
+        )
+    
+    def sync_account(self) -> Dict:
+        """Fetch account data from Alpaca"""
+        account = self.client.get_account()
+        return {
+            "cash": float(account.cash),
+            "buying_power": float(account.buying_power),
+            "portfolio_value": float(account.portfolio_value)
+        }
+    
+    def sync_positions(self) -> List[Dict]:
+        """Fetch all positions from Alpaca"""
+        positions = self.client.get_all_positions()
+        return [
+            {
+                "symbol": p.symbol,
+                "qty": float(p.qty),
+                "avg_entry": float(p.avg_entry_price),
+                "market_value": float(p.market_value)
+            }
+            for p in positions
+        ]
+    
+    def execute_alpaca_trades(self, decisions: List[Dict]) -> List[Dict]:
+        """Execute trades through Alpaca with guard rails"""
+        # 1. Sync account (get latest cash, buying power)
+        # 2. Apply ALL existing guard rails:
+        #    - Position limits (14% max per symbol)
+        #    - Cycle limits (18% buy, 35% sell)
+        #    - Cash buffer (12% minimum)
+        #    - Notional minimums ($25 per trade)
+        # 3. Submit market orders via Alpaca API
+        # 4. Validate order responses
+        # 5. Update local database
+        # 6. Return executed trades
+```
+
+### Pattern: Guard Rail Preservation
+
+**Critical Safety Pattern:**
+All existing paper trading guard rails are enforced BEFORE submitting to Alpaca:
+
+```python
+def execute_alpaca_trades(decisions):
+    # Sync with broker first
+    account = sync_account()
+    cash = account["cash"]
+    portfolio_value = account["portfolio_value"]
+    
+    # Apply guard rails (SAME as paper trading)
+    for decision in decisions:
+        # Position limit check
+        if decision["allocation_pct"] > Config.MAX_SYMBOL_WEIGHT_PCT:
+            decision["action"] = "HOLD"
+            decision["note"] = f"Exceeds {Config.MAX_SYMBOL_WEIGHT_PCT}% limit"
+            continue
+        
+        # Cycle limit check
+        total_buy_allocation = sum(d["allocation_pct"] for d in decisions if d["action"] == "BUY")
+        if total_buy_allocation > Config.MAX_BUY_EQUITY_PCT_PER_CYCLE:
+            # Reject or scale down
+            continue
+        
+        # Cash buffer check
+        required_cash = portfolio_value * Config.MIN_CASH_BUFFER_PCT / 100
+        if cash - notional < required_cash:
+            decision["action"] = "HOLD"
+            decision["note"] = "Insufficient cash buffer"
+            continue
+        
+        # Notional minimum check
+        if notional < Config.MIN_TRADE_NOTIONAL:
+            decision["action"] = "HOLD"
+            decision["note"] = f"Below ${Config.MIN_TRADE_NOTIONAL} minimum"
+            continue
+    
+    # Only now submit to Alpaca
+    for decision in approved_decisions:
+        order = MarketOrderRequest(
+            symbol=decision["symbol"],
+            qty=decision["qty"],
+            side=OrderSide.BUY if decision["action"] == "BUY" else OrderSide.SELL,
+            time_in_force=TimeInForce.DAY
+        )
+        response = client.submit_order(order)
+        # Validate response, handle errors
+```
+
+**Why This Pattern Matters:**
+- Same risk management for paper and live trading
+- No bypass of safety controls when going live
+- Confidence that live trading won't be more risky than paper
+- Easy to audit (single codebase for guard rails)
+
+### Pattern: Account Synchronization
+
+**Sync Before Trade:**
+```python
+def trade_cycle():
+    # 1. Sync account state from broker
+    account = sync_account()
+    db.update_portfolio("cash", account["cash"])
+    
+    # 2. Sync positions from broker
+    positions = sync_positions()
+    for position in positions:
+        db.upsert_position(position)
+    
+    # 3. Make trading decisions based on latest state
+    decisions = think_worker_decides()
+    
+    # 4. Execute trades
+    execute_trades(decisions)
+```
+
+**Why Sync Matters:**
+- Local database may drift from broker reality
+- Ensures guard rails use accurate cash/position data
+- Catches external trades (manual or other systems)
+- Reconciles any discrepancies
+
+### Pattern: Paper Mode Flag Protection
+
+**Safety Toggle:**
+```python
+# .env configuration
+ALPACA_PAPER_MODE=true   # Safe: Paper trading account
+ALPACA_PAPER_MODE=false  # DANGER: LIVE REAL MONEY
+
+# Config class automatically routes to correct endpoint
+if Config.ALPACA_PAPER_MODE:
+    base_url = "https://paper-api.alpaca.markets"
+else:
+    base_url = "https://api.alpaca.markets"
+```
+
+**UI Warning (Future):**
+```python
+if not Config.ALPACA_PAPER_MODE:
+    display_warning("⚠️ LIVE TRADING MODE - REAL MONEY AT RISK")
+    require_confirmation("Type 'I UNDERSTAND' to proceed")
+```
+
+### Database Schema Pattern
+
+**Broker Configuration Table:**
+```sql
+CREATE TABLE IF NOT EXISTS broker_config (
+    id INTEGER PRIMARY KEY,
+    provider TEXT NOT NULL,           -- 'paper' or 'alpaca'
+    api_key TEXT,                     -- Encrypted in production
+    secret_key TEXT,                  -- Encrypted in production
+    is_paper BOOLEAN DEFAULT 1,       -- Safety flag
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+```
+
+**Why Store in Database:**
+- Per-user broker configuration (future multi-user)
+- Audit trail of broker changes
+- Encryption at rest (future security)
+- API key rotation tracking
+
+### Error Handling Pattern
+
+**Graceful Degradation for Alpaca:**
+```python
+def execute_alpaca_trades(decisions):
+    try:
+        # Attempt Alpaca execution
+        account = sync_account()
+        # ... execute trades ...
+    except AlpacaAPIError as e:
+        logger.error(f"Alpaca API error: {e}")
+        # Fall back to paper trading for this cycle
+        return execute_paper_trades(decisions)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        # Do not trade if uncertain
+        return []
+```
+
+**Pattern Benefits:**
+- No complete system failure if Alpaca unavailable
+- Logged errors for debugging
+- Temporary fallback to paper mode
+- User notified of degraded operation
+
 ## Configuration Patterns
 
 ### Environment-Driven Configuration
 - **Provider Abstraction**: Ollama vs OpenRouter via `LLM_PROVIDER`
+- **Broker Abstraction**: Paper vs Alpaca via `BROKER_PROVIDER`
+- **Data Abstraction**: Yahoo vs Alpaca via `DATA_PROVIDER`
 - **Speed Controls**: Configurable worker intervals
 - **Risk Parameters**: Adjustable guard rail percentages
 - **Debug Modes**: Verbose logging and testing hooks
 
-### Pattern: **Strategy Pattern for LLM Providers**
+### Pattern: **Strategy Pattern for Providers**
+
+**LLM Providers:**
 ```python
 def llm_chat_json(system: str, user: str):
-    if LLM_PROVIDER == "openrouter":
+    if Config.LLM_PROVIDER == "openrouter":
         return openrouter_chat_json(system, user)
     else:
         return ollama_chat_json(system, user)
+```
+
+**Broker Providers:**
+```python
+def execute_trades(decisions: List[Dict]):
+    if Config.BROKER_PROVIDER == "alpaca":
+        return execute_alpaca_trades(decisions)
+    else:
+        return execute_paper_trades(decisions)
+```
+
+**Data Providers:**
+```python
+def fetch_market_data(symbols: List[str]):
+    if Config.DATA_PROVIDER == "alpaca":
+        return alpaca_client.last_close_many(symbols)
+    else:
+        return yahoo_client.last_close_many(symbols)
 ```
 
 ## Critical Implementation Paths
@@ -542,3 +875,381 @@ Options data enables sophisticated strategies (not yet implemented):
 - **Cross-Asset Hedging:** Options on sector ETFs vs individual stocks
 
 The foundation is built - options are monitored, graphed, and available to the decision engine. Future iterations can leverage this intelligence for explicit options trading.
+
+## Portfolio Reconciliation & Transaction Tracking Pattern
+
+### Complete Audit Trail Architecture
+
+The system implements **Event Sourcing** principles for complete transaction tracking and reconciliation:
+
+```mermaid
+flowchart LR
+    subgraph "Transaction Storage"
+        DB[(SQLite Database)]
+        Trades[trades table<br/>Immutable history]
+        Positions[positions table<br/>Current state]
+        Portfolio[portfolio table<br/>Cash balance]
+    end
+    
+    subgraph "Analysis Layer"
+        API[/api/transactions<br/>Backend API]
+        Script[reconciliation_report.py<br/>CLI Tool]
+    end
+    
+    subgraph "Presentation Layer"
+        Chart[Chart.js Visualization<br/>Performance Timeline]
+        Table[Transaction Table<br/>Trade History]
+        Cards[Summary Cards<br/>Key Metrics]
+    end
+    
+    Trades --> API
+    Trades --> Script
+    Positions --> API
+    Portfolio --> API
+    
+    API --> Chart
+    API --> Table
+    API --> Cards
+    
+    Script --> Report[Text Report<br/>RECONCILIATION_SUMMARY.md]
+```
+
+### Portfolio Value Calculation Pattern
+
+**Pattern:** Reconstruct portfolio value at any point in time by replaying transactions
+
+```python
+# Track holdings with average cost basis
+holdings = {}  # symbol -> {qty, avg_cost}
+
+for trade in chronological_trades:
+    if trade.side == "BUY":
+        # Update average cost (weighted average)
+        old_qty = holdings[symbol]["qty"]
+        old_cost = holdings[symbol]["avg_cost"]
+        new_qty = old_qty + qty
+        total_cost = (old_qty * old_cost) + notional
+        holdings[symbol] = {
+            "qty": new_qty,
+            "avg_cost": total_cost / new_qty
+        }
+        running_cash -= notional
+        
+    elif trade.side == "SELL":
+        # Reduce position, maintain avg cost
+        holdings[symbol]["qty"] -= qty
+        running_cash += notional
+    
+    # Calculate portfolio value at this point
+    equity_value = sum(h["qty"] * h["avg_cost"] for h in holdings.values())
+    portfolio_value = running_cash + equity_value
+    
+    timeline.append({
+        "timestamp": trade.ts,
+        "portfolio_value": portfolio_value,
+        "cash": running_cash,
+        "equity": equity_value
+    })
+```
+
+**Key Insight:** This pattern enables:
+- Historical portfolio value reconstruction
+- Performance attribution analysis
+- Gain/loss calculation (realized vs unrealized)
+- Cash flow verification
+- Audit trail for compliance
+
+### Realized vs Unrealized Gain Calculation
+
+**Pattern:** Match sales to purchases using FIFO or weighted average cost
+
+```python
+def calculate_realized_gain(trades):
+    realized_gain = 0
+    
+    for sale in [t for t in trades if t.side == "SELL"]:
+        symbol = sale.symbol
+        
+        # Find all prior purchases of this symbol
+        purchases = [t for t in trades 
+                    if t.symbol == symbol 
+                    and t.side == "BUY" 
+                    and t.trade_id < sale.trade_id]
+        
+        # Calculate weighted average purchase price
+        total_qty = sum(p.qty for p in purchases)
+        total_cost = sum(p.notional for p in purchases)
+        avg_cost = total_cost / total_qty
+        
+        # Realized gain = (sale price - avg cost) * qty
+        realized_gain += sale.notional - (sale.qty * avg_cost)
+    
+    return realized_gain
+```
+
+**Pattern Benefits:**
+- Tax reporting accuracy
+- Performance measurement
+- Trading strategy evaluation
+- Compliance with accounting standards
+
+### API Design Pattern: Timeline Reconstruction
+
+**Endpoint:** `GET /api/transactions`
+
+**Response Structure:**
+```json
+{
+  "trades": [
+    {
+      "trade_id": 1,
+      "ts": "2025-12-30T10:15:00",
+      "symbol": "AAPL",
+      "side": "BUY",
+      "qty": 0.5,
+      "price": 200.00,
+      "notional": 100.00,
+      "cash_after": 400.00,
+      "reason": "Multi-agent decision"
+    }
+  ],
+  "timeline": [
+    {
+      "timestamp": "2025-12-30T10:15:00",
+      "portfolio_value": 500.00,
+      "cash": 400.00,
+      "equity": 100.00,
+      "trade": {
+        "symbol": "AAPL",
+        "side": "BUY",
+        "qty": 0.5,
+        "price": 200.00,
+        "notional": 100.00
+      }
+    }
+  ],
+  "summary": {
+    "start_balance": 500.00,
+    "current_cash": 60.43,
+    "current_equity": 459.27,
+    "current_total": 519.70,
+    "total_invested": 465.20,
+    "total_sold": 25.63,
+    "realized_gain": 1.13,
+    "unrealized_gain": 18.57,
+    "total_gain": 19.70,
+    "total_return_pct": 3.94,
+    "trade_count": 13
+  }
+}
+```
+
+**Pattern:** Single endpoint returns three views of the same data:
+1. **Raw Transactions** - Immutable event log
+2. **Portfolio Timeline** - Reconstructed state at each event
+3. **Summary Statistics** - Aggregate metrics
+
+### UI Visualization Pattern: Chart.js Time-Series
+
+**Pattern:** Multi-dataset chart combining line and scatter plots
+
+```javascript
+const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: timeline.map(t => new Date(t.timestamp)),
+        datasets: [
+            {
+                label: 'Portfolio Value',
+                data: timeline.map(t => t.portfolio_value),
+                type: 'line',
+                borderColor: '#a78bfa',
+                backgroundColor: 'rgba(167, 139, 250, 0.1)',
+                fill: true,
+                tension: 0.3
+            },
+            {
+                label: 'BUY',
+                data: buyTrades.map(t => ({x: t.timestamp, y: t.portfolio_value})),
+                type: 'scatter',
+                backgroundColor: '#10b981',
+                pointRadius: 8
+            },
+            {
+                label: 'SELL',
+                data: sellTrades.map(t => ({x: t.timestamp, y: t.portfolio_value})),
+                type: 'scatter',
+                backgroundColor: '#ef4444',
+                pointRadius: 8
+            }
+        ]
+    }
+});
+```
+
+**Pattern Benefits:**
+- Visual performance tracking over time
+- Trade execution points clearly marked
+- Interactive tooltips with trade details
+- Timezone-aware display
+- Responsive to window resizing
+
+### Reconciliation Verification Pattern
+
+**Pattern:** Two independent calculations that must match
+
+```python
+# Method 1: Sum of all trades
+total_invested = sum(t.notional for t in trades if t.side == "BUY")
+total_sold = sum(t.notional for t in trades if t.side == "SELL")
+calculated_cash = start_cash - total_invested + total_sold
+
+# Method 2: Database current state
+actual_cash = db.query("SELECT v FROM portfolio WHERE k='cash'")
+
+# Verification
+assert abs(calculated_cash - actual_cash) < 0.01, "Cash reconciliation mismatch!"
+```
+
+**Pattern:** Cross-validation ensures data integrity:
+- Event sourcing (trades) vs current state (portfolio table)
+- Calculated values vs database values
+- Timeline reconstruction vs snapshot data
+
+### Summary Card Pattern
+
+**Pattern:** Grid of metric cards with color-coded indicators
+
+```html
+<div class="summary-cards">
+  <div class="summary-card">
+    <div class="summary-label">Total Gain</div>
+    <div class="summary-value positive">$19.70</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">Total Return</div>
+    <div class="summary-value positive">+3.94%</div>
+  </div>
+</div>
+```
+
+**Styling Pattern:**
+```css
+.summary-value.positive { color: #10b981; }
+.summary-value.negative { color: #ef4444; }
+```
+
+**Pattern Benefits:**
+- At-a-glance portfolio health
+- Clear visual indicators (green/red)
+- Responsive grid layout
+- Hover effects for interactivity
+
+### Tab Loading Pattern: Lazy Loading
+
+**Pattern:** Load transaction data only when tab is viewed
+
+```javascript
+function switchTab(tabName) {
+    // ... tab switching logic ...
+    
+    if (tabName === 'transactions') {
+        loadTransactions();  // Fetch data on demand
+    }
+}
+
+async function loadTransactions() {
+    const data = await fetchJSON("/api/transactions");
+    renderTransactionsChart(data);
+    renderTransactionsTable(data);
+    renderTransactionsSummary(data);
+}
+```
+
+**Pattern Benefits:**
+- Reduces initial page load time
+- API calls only when needed
+- Data freshness ensured on tab view
+- Modular component architecture
+
+### Transaction Table Color-Coding Pattern
+
+**Pattern:** Visual differentiation using CSS borders and badges
+
+```css
+.transactions-table .trade-buy {
+  border-left: 3px solid #10b981;  /* Green for BUY */
+}
+
+.transactions-table .trade-sell {
+  border-left: 3px solid #ef4444;  /* Red for SELL */
+}
+```
+
+**Pattern:** Badges for action type:
+```html
+<span class="pill buy-badge">BUY</span>
+<span class="pill sell-badge">SELL</span>
+```
+
+**Pattern Benefits:**
+- Instant visual recognition
+- Consistent color semantics (green=buy, red=sell)
+- Enhanced scanability
+- Professional appearance
+
+### Data Consistency Pattern
+
+**Pattern:** Database as single source of truth, API as transformation layer
+
+```mermaid
+graph TD
+    DB[SQLite Database<br/>Single Source of Truth]
+    
+    DB --> API1[/api/state<br/>Current snapshot]
+    DB --> API2[/api/transactions<br/>Historical analysis]
+    DB --> Script[reconciliation_report.py<br/>CLI analysis]
+    
+    API1 --> UI1[Main Dashboard]
+    API2 --> UI2[Transactions Tab]
+    Script --> Report[Text Report]
+    
+    style DB fill:#e3f2fd
+```
+
+**Key Principles:**
+1. **Immutable Events**: Trades table is append-only
+2. **Derived State**: Portfolio value calculated from trades
+3. **Eventual Consistency**: Positions updated after trades execute
+4. **Audit Trail**: Complete transaction history always available
+
+### Use Case: Tax Reporting
+
+The reconciliation pattern enables accurate tax reporting:
+
+```python
+def generate_tax_report(year):
+    trades = get_trades_for_year(year)
+    
+    short_term_gains = 0
+    long_term_gains = 0
+    
+    for sale in [t for t in trades if t.side == "SELL"]:
+        purchase = find_matched_purchase(sale)
+        hold_days = (sale.ts - purchase.ts).days
+        gain = sale.notional - (sale.qty * purchase.price)
+        
+        if hold_days < 365:
+            short_term_gains += gain
+        else:
+            long_term_gains += gain
+    
+    return {
+        "short_term": short_term_gains,
+        "long_term": long_term_gains,
+        "total_proceeds": sum(s.notional for s in sales),
+        "cost_basis": sum(p.notional for p in matched_purchases)
+    }
+```
+
+This pattern provides the foundation for regulatory compliance and accurate financial reporting.

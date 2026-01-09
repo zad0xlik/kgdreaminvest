@@ -12,11 +12,39 @@ async function refreshAll() {
   document.getElementById("bw_qqq").textContent = st.latest.qqq;
   document.getElementById("bw_vix").textContent = st.latest.vix;
   document.getElementById("bw_uup").textContent = st.latest.uup;
-  document.getElementById("sig_line").textContent = st.latest.signals;
+  
+  // Update snapshot timestamp with timezone conversion
+  if (st.latest.timestamp) {
+    const ts = convertToUserTimezone(st.latest.timestamp);
+    const tzAbbr = getTimezoneAbbr();
+    document.getElementById("snapshot_time").textContent = `Updated: ${ts} ${tzAbbr}`;
+  }
+  
+  // Format and display signals as clean table
+  const signals = st.latest.signals || {};
+  const signalLabels = {
+    'risk_off': 'Risk-Off',
+    'rates_up': 'Rates Up',
+    'oil_shock': 'Oil Shock',
+    'semi_pulse': 'Semi Pulse'
+  };
+  
+  let signalsHtml = '';
+  for (const [key, value] of Object.entries(signals)) {
+    const label = signalLabels[key] || key;
+    const percentage = (value * 100).toFixed(1);
+    signalsHtml += `<div class="row"><div class="label">${label}</div><div class="value">${percentage}%</div></div>`;
+  }
+  document.getElementById("signals_table").innerHTML = signalsHtml || '<div class="small" style="color:#9ca3af">No signals available</div>';
 
   // Update portfolio
   document.getElementById("pf_cash").textContent = st.portfolio.cash;
   document.getElementById("pf_equity").textContent = st.portfolio.equity;
+  
+  // Update dynamic portfolio header based on broker
+  if (st.broker) {
+    updatePortfolioHeader(st.broker);
+  }
 
   // Update LLM budget
   document.getElementById("llm_calls").textContent = `${st.llm.calls_used} / ${st.llm.calls_budget}`;
@@ -39,11 +67,11 @@ async function refreshAll() {
   tr.className = "pill " + (st.auto_trade ? "on" : "off");
   tr.textContent = st.auto_trade ? "ON" : "OFF";
 
-  // Update positions table with both equities and options
+  // Update positions table with both equities and options (with timezone conversion)
   document.querySelector("#pos_table tbody").innerHTML = st.portfolio.positions.map(p => {
     const typeClass = p.type === 'option' ? 'option-badge' : 'equity-badge';
     const typeLabel = p.type === 'option' ? 'OPT' : 'STK';
-    const executionTime = p.updated_at ? p.updated_at.substring(0, 19).replace('T', ' ') : '—';
+    const executionTime = p.updated_at ? convertToUserTimezone(p.updated_at, false) : '—';
     const qtyDisplay = p.type === 'option' ? p.qty.toFixed(0) : p.qty.toFixed(3);
     
     return `<tr>
@@ -55,16 +83,18 @@ async function refreshAll() {
     </tr>`;
   }).join("");
 
-  // Update logs
+  // Update logs (with timezone conversion)
   document.getElementById("log_box").innerHTML = st.logs.map(l => {
-    return `<div class="log"><b>${l.actor}</b> · <span style="color:#a78bfa">${l.action}</span><br/><span class="small">${l.ts}</span><br/>${l.detail || ""}</div>`;
+    const timestamp = convertToUserTimezone(l.ts);
+    return `<div class="log"><b>${l.actor}</b> · <span style="color:#a78bfa">${l.action}</span><br/><span class="small">${timestamp}</span><br/>${l.detail || ""}</div>`;
   }).join("");
 
-  // Update insights
+  // Update insights (with timezone conversion)
   document.getElementById("insight_box").innerHTML = st.insights.map(ins => {
+    const timestamp = convertToUserTimezone(ins.ts);
     return `<div class="insight">
       <div class="title">${ins.title}</div>
-      <div class="small">${ins.ts} · status=${ins.status}</div>
+      <div class="small">${timestamp} · status=${ins.status}</div>
       <div style="margin-top:8px; white-space:pre-wrap;">${ins.body}</div>
       <div class="action"><b>Decisions:</b> <span class="small mono">${ins.decisions}</span></div>
       <div class="meta">
@@ -194,6 +224,58 @@ async function removeBellwether(ticker) {
   }
 }
 
+function updatePortfolioHeader(broker) {
+  /**
+   * Update portfolio header dynamically based on broker provider.
+   * @param {Object} broker - Broker info from API: {provider, account_type, account_number, is_paper, daily_change_pct}
+   */
+  const headerEl = document.getElementById("portfolio-header");
+  const subheaderEl = document.getElementById("portfolio-subheader");
+  const dailyChangeRow = document.getElementById("portfolio-daily-change");
+  const dailyChangeValue = document.getElementById("pf_daily_change");
+  
+  if (broker.provider === "alpaca") {
+    // Alpaca mode
+    const icon = broker.is_paper ? "🏦" : "⚠️";
+    const suffix = broker.is_paper ? "" : " (LIVE)";
+    
+    headerEl.innerHTML = `${icon} Alpaca Portfolio${suffix}`;
+    headerEl.style.color = broker.is_paper ? "#e5e7eb" : "#fbbf24"; // Yellow for LIVE
+    
+    // Display account type and number
+    const accNum = broker.account_number || "—";
+    subheaderEl.textContent = `${broker.account_type} ${accNum}`;
+    subheaderEl.style.display = "block";
+    
+    // Show daily change if available
+    if (broker.daily_change_pct !== undefined && broker.daily_change_pct !== null) {
+      const pct = broker.daily_change_pct * 100;
+      dailyChangeValue.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+      dailyChangeValue.style.color = pct >= 0 ? "#10b981" : "#ef4444";
+      dailyChangeRow.style.display = "flex";
+    } else {
+      dailyChangeRow.style.display = "none";
+    }
+    
+    // Add pulsing effect for LIVE mode
+    if (!broker.is_paper) {
+      headerEl.classList.add("live-mode");
+    } else {
+      headerEl.classList.remove("live-mode");
+    }
+  } else {
+    // Paper mode (Yahoo Finance)
+    headerEl.innerHTML = "💼 Paper Portfolio";
+    headerEl.style.color = "#e5e7eb";
+    headerEl.classList.remove("live-mode");
+    
+    subheaderEl.textContent = "Local Simulation";
+    subheaderEl.style.display = "block";
+    
+    dailyChangeRow.style.display = "none";
+  }
+}
+
 async function refreshInvestibles() {
   try {
     const data = await fetchJSON("/api/investibles");
@@ -217,11 +299,14 @@ async function refreshInvestibles() {
         const sectorColor = sectorColors[inv.sector] || '#9ca3af';
         const toggleClass = inv.enabled ? 'on' : 'off';
         const lvlLabel = levelLabels[inv.expansion_level] || 'L' + inv.expansion_level;
+        const hasChildren = tree[inv.ticker] && tree[inv.ticker].length > 0;
         
         investiblesHtml += `<div style="margin:4px 0">
           <div class="row" style="padding:6px 8px;background:rgba(255,255,255,.04)">
             <div style="display:flex;align-items:center;gap:6px;flex:1">
               <span class="pill ${toggleClass}" style="cursor:pointer;min-width:35px;text-align:center;font-size:10px" onclick="toggleInvestible('${inv.ticker}', ${inv.enabled})">${inv.enabled ? 'ON' : 'OFF'}</span>
+              <button class="btn" style="width:auto;padding:3px 8px;margin:0;font-size:12px;background:#10b981;border-color:#10b981" onclick="expandInvestibleStock('${inv.ticker}')" title="Expand this stock (find similar & dependent stocks)">+</button>
+              ${hasChildren ? `<button class="btn" style="width:auto;padding:3px 8px;margin:0;font-size:12px;background:#f59e0b;border-color:#f59e0b" onclick="removeInvestibleChildren('${inv.ticker}')" title="Remove all children for this stock">−</button>` : ''}
               <b style="color:${lvlColor}">${inv.ticker}</b>
               <span style="color:${lvlLabel === 'USER' ? lvlColor : '#9ca3af'};font-size:9px;font-weight:800">${lvlLabel}</span>
               ${inv.sector ? `<span style="color:${sectorColor};font-size:9px">${inv.sector}</span>` : ''}
@@ -237,7 +322,7 @@ async function refreshInvestibles() {
             const childToggleClass = child.enabled ? 'on' : 'off';
             const childLvlLabel = levelLabels[child.expansion_level] || 'L' + child.expansion_level;
             
-            investiblesHtml += `<div class="row" style="margin-left:20px;padding:5px 8px;background:rgba(255,255,255,.02);border-left:2px solid ${childLvlColor}">
+            investiblesHtml += `<div class="row child-of-${inv.ticker}" style="margin-left:20px;padding:5px 8px;background:rgba(255,255,255,.02);border-left:2px solid ${childLvlColor}">
               <div style="display:flex;align-items:center;gap:6px;flex:1">
                 <span class="pill ${childToggleClass}" style="cursor:pointer;min-width:35px;text-align:center;font-size:9px" onclick="toggleInvestible('${child.ticker}', ${child.enabled})">${child.enabled ? 'ON' : 'OFF'}</span>
                 <span style="color:${childLvlColor};font-size:11px">${child.ticker}</span>
@@ -350,8 +435,115 @@ async function removeInvestible(ticker) {
   }
 }
 
+async function expandAllInvestibles() {
+  if (!confirm("Expand all existing investibles? This will use LLM credits to find similar and dependent stocks for each ticker.")) {
+    return;
+  }
+  
+  try {
+    const result = await fetchJSON("/api/investibles/expand-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    
+    if (result.success) {
+      await refreshInvestibles();
+      
+      // Poll for expansion progress
+      const pollInterval = setInterval(async () => {
+        if (document.getElementById("investibles-content").classList.contains("expanded")) {
+          await refreshInvestibles();
+        }
+        
+        // Check if expansion is complete
+        const status = await fetchJSON("/api/investibles/expansion-status");
+        if (!status.expansion.is_running) {
+          clearInterval(pollInterval);
+          await refreshInvestibles();
+        }
+      }, 3000);
+    } else {
+      alert(result.error || "Failed to start expansion");
+    }
+  } catch (e) {
+    if (e.message.includes("409")) {
+      alert("Expansion already in progress. Please wait for it to complete.");
+    } else {
+      alert("Error starting expand-all: " + e.message);
+    }
+  }
+}
+
+async function expandInvestibleStock(ticker) {
+  if (!confirm(`Expand ${ticker}? This will use LLM credits to find similar and dependent stocks for this ticker.`)) {
+    return;
+  }
+  
+  try {
+    const result = await fetchJSON(`/api/investibles/expand/${ticker}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    
+    if (result.success) {
+      alert(`Started expanding ${ticker}. This will take a moment...`);
+      await refreshInvestibles();
+      
+      // Poll for expansion progress
+      const pollInterval = setInterval(async () => {
+        if (document.getElementById("investibles-content").classList.contains("expanded")) {
+          await refreshInvestibles();
+        }
+        
+        // Check if expansion is complete
+        const status = await fetchJSON("/api/investibles/expansion-status");
+        if (!status.expansion.is_running) {
+          clearInterval(pollInterval);
+          await refreshInvestibles();
+        }
+      }, 3000);
+    } else {
+      alert(result.error || "Failed to start expansion");
+    }
+  } catch (e) {
+    if (e.message.includes("409")) {
+      alert("Expansion already in progress. Please wait for it to complete.");
+    } else {
+      alert("Error expanding stock: " + e.message);
+    }
+  }
+}
+
+async function removeInvestibleChildren(ticker) {
+  if (!confirm(`Remove all children for ${ticker}? This will delete all similar and dependent stocks found for this ticker.`)) {
+    return;
+  }
+  
+  try {
+    const result = await fetchJSON(`/api/investibles/remove-children/${ticker}`, {
+      method: "DELETE"
+    });
+    
+    if (result.success) {
+      alert(`Removed ${result.deleted_count} children for ${ticker}`);
+      await refreshInvestibles();
+    } else {
+      alert(result.error || "Failed to remove children");
+    }
+  } catch (e) {
+    alert("Error removing children: " + e.message);
+  }
+}
+
 // Initialize app
 async function initApp() {
+  // Initialize timezone selector from localStorage
+  const savedTimezone = getUserTimezone();
+  const timezoneSelector = document.getElementById('timezone_selector');
+  if (timezoneSelector) {
+    timezoneSelector.value = savedTimezone;
+  }
+  
   await initGraph();
   await refreshAll();
   setInterval(refreshAll, 7000);
@@ -376,6 +568,8 @@ function switchTab(tabName) {
   // Load tab-specific content
   if (tabName === 'prompts') {
     loadPromptsEditor();
+  } else if (tabName === 'transactions') {
+    loadTransactions();
   }
 }
 

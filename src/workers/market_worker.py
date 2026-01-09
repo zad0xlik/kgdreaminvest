@@ -71,16 +71,34 @@ class MarketWorker:
             jitter_sleep(Config.MARKET_INTERVAL, self.stop)
 
     def step_once(self):
-        """Execute one market data fetch cycle."""
+        """Execute one market data fetch cycle with hybrid data sources."""
         # Get enabled tickers from database (fallback to config)
         investibles = get_active_investibles()
         bellwethers = get_active_bellwethers()
-        all_tickers = list(set(investibles + bellwethers))
         
-        # Fetch all ticker prices
-        prices = last_close_many(all_tickers, max_workers=min(10, len(all_tickers)))
+        # Primary tickers (investibles + universal bellwethers) via configured DATA_PROVIDER
+        primary_tickers = list(set(investibles + Config.BELLWETHERS))
+        
+        # Fetch primary tickers via configured DATA_PROVIDER (Alpaca or Yahoo)
+        prices = last_close_many(primary_tickers, max_workers=min(10, len(primary_tickers)))
+        
+        # ALWAYS fetch Yahoo-specific bellwethers via Yahoo Finance (regardless of DATA_PROVIDER)
+        # These are indices, futures, forex that Alpaca doesn't support
+        if Config.BELLWETHERS_YF:
+            from src.market import last_close_many_yahoo
+            yahoo_prices = last_close_many_yahoo(
+                Config.BELLWETHERS_YF, 
+                max_workers=min(5, len(Config.BELLWETHERS_YF))
+            )
+            # Merge Yahoo-specific data into main prices dict
+            prices.update(yahoo_prices)
+            logger.debug(
+                f"Fetched {len(yahoo_prices)} Yahoo-specific bellwethers: "
+                f"{', '.join(yahoo_prices.keys())}"
+            )
+        
         if not prices:
-            raise RuntimeError("Yahoo fetch returned no prices")
+            raise RuntimeError("Fetch returned no prices")
 
         # Compute indicators for enabled investibles only
         indicators = {}

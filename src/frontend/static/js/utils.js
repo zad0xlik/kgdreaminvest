@@ -5,6 +5,118 @@ async function fetchJSON(url, opts) {
   return await r.json();
 }
 
+// ============== TIMEZONE UTILITIES ==============
+
+const TIMEZONES = {
+  'America/New_York': 'Eastern Time (ET)',
+  'America/Chicago': 'Central Time (CT)',
+  'America/Los_Angeles': 'Pacific Time (PT)',
+  'Europe/London': 'London (GMT/BST)',
+  'Asia/Tokyo': 'Tokyo (JST)',
+  'Asia/Hong_Kong': 'Hong Kong (HKT)',
+  'Australia/Sydney': 'Sydney (AEST)',
+  'Europe/Berlin': 'Frankfurt (CET)',
+  'Asia/Singapore': 'Singapore (SGT)',
+  'Asia/Shanghai': 'Shanghai (CST)'
+};
+
+/**
+ * Get the user's selected timezone from localStorage
+ * Defaults to America/Los_Angeles if not set
+ */
+function getUserTimezone() {
+  return localStorage.getItem('selectedTimezone') || 'America/Los_Angeles';
+}
+
+/**
+ * Set the user's timezone preference
+ */
+function setUserTimezone(timezone) {
+  localStorage.setItem('selectedTimezone', timezone);
+}
+
+/**
+ * Convert UTC timestamp to selected timezone
+ * @param {string} utcTimestamp - UTC timestamp string (e.g., "2025-12-30T22:23:15")
+ * @param {boolean} includeSeconds - Whether to include seconds in output
+ * @returns {string} Formatted timestamp in user's timezone
+ */
+function convertToUserTimezone(utcTimestamp, includeSeconds = true) {
+  if (!utcTimestamp) return '—';
+  
+  const timezone = getUserTimezone();
+  const date = new Date(utcTimestamp);
+  
+  // Check for invalid date
+  if (isNaN(date.getTime())) return '—';
+  
+  const options = {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  };
+  
+  if (includeSeconds) {
+    options.second = '2-digit';
+  }
+  
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', options);
+    const parts = formatter.formatToParts(date);
+    
+    // Extract parts
+    const year = parts.find(p => p.type === 'year').value;
+    const month = parts.find(p => p.type === 'month').value;
+    const day = parts.find(p => p.type === 'day').value;
+    const hour = parts.find(p => p.type === 'hour').value;
+    const minute = parts.find(p => p.type === 'minute').value;
+    
+    if (includeSeconds) {
+      const second = parts.find(p => p.type === 'second').value;
+      return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+    }
+    
+    return `${year}-${month}-${day} ${hour}:${minute}`;
+  } catch (e) {
+    console.error('Timezone conversion error:', e);
+    return utcTimestamp.substring(0, 19).replace('T', ' ');
+  }
+}
+
+/**
+ * Get timezone abbreviation for display
+ */
+function getTimezoneAbbr() {
+  const timezone = getUserTimezone();
+  const date = new Date();
+  
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'short'
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const tzPart = parts.find(p => p.type === 'timeZoneName');
+    return tzPart ? tzPart.value : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Change timezone and refresh the entire UI
+ */
+function changeTimezone(newTimezone) {
+  setUserTimezone(newTimezone);
+  // Refresh all data to apply new timezone
+  refreshAll();
+}
+
 function toggleStarredPlansSection() {
   const content = document.getElementById("starred-plans-content");
   const icon = document.getElementById("starred-plans-expand-icon");

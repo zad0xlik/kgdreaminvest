@@ -5,6 +5,8 @@
   <title>KGDreamInvest — Live/Paper</title>
   <link rel="stylesheet" href="/static/css/main.css">
   <script src="https://unpkg.com/vis-network@9.1.2/standalone/umd/vis-network.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -21,17 +23,44 @@
       </div>
 
       <div class="divider"></div>
+      <div style="margin-bottom:12px">
+        <div class="small" style="margin-bottom:4px;color:#a78bfa;font-weight:600">🌍 Timezone</div>
+        <select id="timezone_selector" onchange="changeTimezone(this.value)" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#e5e7eb;font-size:12px">
+          <option value="America/New_York">Eastern Time (ET)</option>
+          <option value="America/Chicago">Central Time (CT)</option>
+          <option value="America/Los_Angeles" selected>Pacific Time (PT)</option>
+          <option value="Europe/London">London (GMT/BST)</option>
+          <option value="Asia/Tokyo">Tokyo (JST)</option>
+          <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+          <option value="Australia/Sydney">Sydney (AEST)</option>
+          <option value="Europe/Berlin">Frankfurt (CET)</option>
+          <option value="Asia/Singapore">Singapore (SGT)</option>
+          <option value="Asia/Shanghai">Shanghai (CST)</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
       <h2>📡 Latest Snapshot</h2>
+      <div class="small" style="margin-bottom:8px;color:#9ca3af" id="snapshot_time">Updated: —</div>
       <div class="row"><div class="label">SPY</div><div class="value" id="bw_spy">{{latest.spy}}</div></div>
       <div class="row"><div class="label">QQQ</div><div class="value" id="bw_qqq">{{latest.qqq}}</div></div>
       <div class="row"><div class="label">VIX</div><div class="value" id="bw_vix">{{latest.vix}}</div></div>
       <div class="row"><div class="label">UUP</div><div class="value" id="bw_uup">{{latest.uup}}</div></div>
-      <div class="row"><div class="label">Signals</div><div class="value"><span class="small mono" id="sig_line">{{latest.signals}}</span></div></div>
+      <div class="divider"></div>
+      <div class="small" style="margin-bottom:6px;color:#a78bfa;font-weight:600">Market Signals</div>
+      <div id="signals_table"></div>
 
       <div class="divider"></div>
-      <h2>💼 Paper Portfolio</h2>
+      <h2 id="portfolio-header">💼 Paper Portfolio</h2>
+      <div id="portfolio-subheader" class="small" style="margin-bottom:8px;color:#9ca3af;display:none">
+        Local Simulation
+      </div>
       <div class="row"><div class="label">Cash</div><div class="value" id="pf_cash">{{portfolio.cash}}</div></div>
       <div class="row"><div class="label">Equity</div><div class="value" id="pf_equity">{{portfolio.equity}}</div></div>
+      <div id="portfolio-daily-change" class="row" style="display:none">
+        <div class="label">Daily Change</div>
+        <div class="value" id="pf_daily_change">0.00%</div>
+      </div>
       <table class="table" id="pos_table">
         <thead><tr><th>Symbol</th><th>Qty</th><th>Last</th><th>P&L</th><th>Executed</th></tr></thead>
         <tbody>
@@ -72,6 +101,7 @@
       <div class="tab-nav">
         <button class="tab-button active" data-tab="graph" onclick="switchTab('graph')">📊 Graph</button>
         <button class="tab-button" data-tab="plans" onclick="switchTab('plans')">⭐ Starred Plans</button>
+        <button class="tab-button" data-tab="transactions" onclick="switchTab('transactions')">💰 Transactions</button>
         <button class="tab-button" data-tab="options" onclick="switchTab('options')">📈 Options</button>
         <button class="tab-button" data-tab="prompts" onclick="switchTab('prompts')">🤖 AI Prompts</button>
       </div>
@@ -98,6 +128,91 @@
               </div>
             </div>
           {% endfor %}
+        </div>
+      </div>
+
+      <!-- Transactions Tab -->
+      <div id="tab-transactions" class="tab-content">
+        <div id="transactions-content" style="padding:20px;overflow-y:auto">
+          <!-- Summary Cards -->
+          <div class="summary-cards">
+            <div class="summary-card">
+              <div class="summary-label">Start Balance</div>
+              <div class="summary-value" id="summary-start">$0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Current Total</div>
+              <div class="summary-value" id="summary-current">$0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Total Gain</div>
+              <div class="summary-value" id="summary-gain">$0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Total Return</div>
+              <div class="summary-value" id="summary-return">0.00%</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Total Trades</div>
+              <div class="summary-value" id="summary-trades">0</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Invested</div>
+              <div class="summary-value small" id="summary-invested">$0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Sold</div>
+              <div class="summary-value small" id="summary-sold">$0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Realized Gain</div>
+              <div class="summary-value small" id="summary-realized">$0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Unrealized Gain</div>
+              <div class="summary-value small" id="summary-unrealized">$0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Current Cash</div>
+              <div class="summary-value small" id="summary-cash">$0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Current Equity</div>
+              <div class="summary-value small" id="summary-equity">$0.00</div>
+            </div>
+          </div>
+
+          <!-- Chart -->
+          <div style="margin-top:24px;background:rgba(0,0,0,.3);padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,.08)">
+            <h3 style="margin:0 0 16px 0;color:#e5e7eb;font-size:16px">Portfolio Value Over Time</h3>
+            <div style="height:400px;position:relative">
+              <canvas id="transactions-chart"></canvas>
+            </div>
+          </div>
+
+          <!-- Transaction Table -->
+          <div style="margin-top:24px">
+            <h3 style="margin:0 0 12px 0;color:#e5e7eb;font-size:16px">Transaction History</h3>
+            <div style="overflow-x:auto">
+              <table class="transactions-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Date/Time</th>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                    <th>Cash After</th>
+                  </tr>
+                </thead>
+                <tbody id="transactions-table-body">
+                  <tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -186,6 +301,7 @@
             <input type="checkbox" id="auto-expand-checkbox" checked style="cursor:pointer"/>
             <span>Auto-expand portfolio (LLM finds similar & dependent stocks)</span>
           </label>
+          <button class="btn" style="width:100%;margin-top:8px;padding:8px 12px" onclick="expandAllInvestibles()">🌳 Expand All</button>
         </div>
       </div>
 
@@ -231,6 +347,7 @@
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/graph.js"></script>
   <script src="/static/js/prompts.js"></script>
+  <script src="/static/js/transactions.js"></script>
   <script src="/static/js/options.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
