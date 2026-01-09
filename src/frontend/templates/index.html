@@ -51,9 +51,16 @@
       <div id="signals_table"></div>
 
       <div class="divider"></div>
-      <h2>💼 Paper Portfolio</h2>
+      <h2 id="portfolio-header">💼 Paper Portfolio</h2>
+      <div id="portfolio-subheader" class="small" style="margin-bottom:8px;color:#9ca3af;display:none">
+        Local Simulation
+      </div>
       <div class="row"><div class="label">Cash</div><div class="value" id="pf_cash">{{portfolio.cash}}</div></div>
       <div class="row"><div class="label">Equity</div><div class="value" id="pf_equity">{{portfolio.equity}}</div></div>
+      <div id="portfolio-daily-change" class="row" style="display:none">
+        <div class="label">Daily Change</div>
+        <div class="value" id="pf_daily_change">0.00%</div>
+      </div>
       <table class="table" id="pos_table">
         <thead><tr><th>Symbol</th><th>Qty</th><th>Last</th><th>P&L</th><th>Executed</th></tr></thead>
         <tbody>
@@ -294,6 +301,7 @@
             <input type="checkbox" id="auto-expand-checkbox" checked style="cursor:pointer"/>
             <span>Auto-expand portfolio (LLM finds similar & dependent stocks)</span>
           </label>
+          <button class="btn" style="width:100%;margin-top:8px;padding:8px 12px" onclick="expandAllInvestibles()">🌳 Expand All</button>
         </div>
       </div>
 

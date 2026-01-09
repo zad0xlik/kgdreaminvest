@@ -80,11 +80,11 @@ def fetch_alpaca_bars(symbol: str, days: int = 60) -> Dict[str, Any]:
         
         bars = client.get_stock_bars(request)
         
-        # Extract data for this symbol
-        if symbol not in bars:
+        # Extract data for this symbol (BarSet has .data attribute)
+        if not bars.data or symbol not in bars.data:
             return {}
         
-        symbol_bars = bars[symbol]
+        symbol_bars = bars.data[symbol]
         
         if not symbol_bars:
             return {}
@@ -237,3 +237,82 @@ def get_latest_quote_alpaca(symbol: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.warning(f"Alpaca quote fetch failed for {symbol}: {e}")
         return None
+
+
+def search_symbols_alpaca(query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Search for tradeable symbols using Alpaca Trading API.
+    
+    Uses the /v2/assets endpoint to search by symbol or company name.
+    Only returns active, tradeable US equities.
+    
+    Args:
+        query: Search query (symbol or company name)
+        limit: Maximum number of results to return
+        
+    Returns:
+        List of dicts with keys: symbol, name, exchange, tradable, status
+        Returns [] on failure or no results
+        
+    Example:
+        >>> results = search_symbols_alpaca("AAPL")
+        >>> for asset in results:
+        ...     print(f"{asset['symbol']}: {asset['name']}")
+        AAPL: Apple Inc.
+        
+        >>> results = search_symbols_alpaca("Apple")
+        >>> # Returns multiple Apple-related stocks
+    """
+    try:
+        from alpaca.trading.client import TradingClient
+        from alpaca.trading.requests import GetAssetsRequest
+        from alpaca.trading.enums import AssetClass, AssetStatus
+        
+        if not Config.ALPACA_API_KEY or not Config.ALPACA_SECRET_KEY:
+            logger.warning("Alpaca API keys not configured for symbol search")
+            return []
+        
+        # Create trading client
+        client = TradingClient(
+            Config.ALPACA_API_KEY,
+            Config.ALPACA_SECRET_KEY,
+            paper=Config.ALPACA_PAPER_MODE
+        )
+        
+        # Search for assets
+        search_params = GetAssetsRequest(
+            status=AssetStatus.ACTIVE,
+            asset_class=AssetClass.US_EQUITY
+        )
+        
+        assets = client.get_all_assets(search_params)
+        
+        # Filter by query (case-insensitive search in symbol or name)
+        query_lower = query.lower().strip()
+        matching_assets = []
+        
+        for asset in assets:
+            symbol_match = query_lower in asset.symbol.lower()
+            name_match = query_lower in (asset.name or "").lower()
+            
+            if symbol_match or name_match:
+                matching_assets.append({
+                    "symbol": asset.symbol,
+                    "name": asset.name or asset.symbol,
+                    "exchange": asset.exchange.value if asset.exchange else "Unknown",
+                    "tradable": asset.tradable,
+                    "status": asset.status.value if asset.status else "unknown",
+                    "asset_class": asset.asset_class.value if asset.asset_class else "unknown"
+                })
+                
+                if len(matching_assets) >= limit:
+                    break
+        
+        # Sort by symbol length (exact/shorter matches first)
+        matching_assets.sort(key=lambda x: (len(x["symbol"]), x["symbol"]))
+        
+        return matching_assets[:limit]
+        
+    except Exception as e:
+        logger.warning(f"Alpaca symbol search failed for '{query}': {e}")
+        return []

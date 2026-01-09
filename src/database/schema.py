@@ -25,11 +25,20 @@ CHANNEL_WEIGHTS = {
     "sentiment_coupled": 0.7,
     "narrative_supports": 0.5,
     "narrative_contradicts": 0.7,
-    # Options-specific channels
+    # Options-specific channels (underlying relationship)
     "options_hedges": 0.85,      # Put provides downside hedge for equity
     "options_leverages": 0.80,   # Call provides leveraged upside exposure
     "options_strategy": 0.75,    # Part of spread/combo strategy
     "greek_exposure": 0.70,      # Delta/Vega correlation to underlying
+    # Options cross-correlation channels
+    "iv_correlates": 0.75,       # IV moves together (volatility clustering)
+    "iv_inverse": 0.75,          # IV inverse correlation
+    "delta_flow": 0.70,          # Directional alignment via delta
+    "vega_exposure": 0.70,       # Shared volatility sensitivity
+    "cross_underlying_hedge": 0.80,  # Options hedge across underlyings
+    "spread_strategy": 0.75,     # Part of vertical/horizontal spread
+    "collar_strategy": 0.85,     # Put+Call collar relationship
+    "vol_regime_coupled": 0.75,  # Move together in vol regime changes
 }
 
 

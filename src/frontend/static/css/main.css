@@ -801,3 +801,33 @@ h3 {
   color: #fca5a5;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
+
+/* Portfolio Header Styles */
+#portfolio-header {
+  transition: color 0.3s ease;
+}
+
+#portfolio-subheader {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  letter-spacing: 0.5px;
+}
+
+/* LIVE mode warning animation */
+#portfolio-header.live-mode {
+  color: #fbbf24 !important;
+  animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { 
+    opacity: 1;
+    text-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+  }
+  50% { 
+    opacity: 0.8;
+    text-shadow: 0 0 16px rgba(251, 191, 36, 0.6);
+  }
+}

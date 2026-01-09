@@ -153,6 +153,73 @@ def llm_find_dependents(ticker: str, count: int = 3) -> List[Dict]:
         return []
 
 
+def expand_all_investibles_background(max_stocks: int = 27):
+    """
+    Background task to expand ALL existing investibles iteratively.
+    
+    This enables compound expansion where:
+    - First run: Level 0 stocks → Level 1
+    - Second run: Level 1 stocks → Level 2
+    - Third run: Level 2 stocks → Level 3, etc.
+    
+    Args:
+        max_stocks: Maximum total stocks to reach (default 27)
+    """
+    global EXPANSION_STATE
+    
+    try:
+        with EXPANSION_LOCK:
+            EXPANSION_STATE["is_running"] = True
+            EXPANSION_STATE["error"] = None
+        
+        logger.info("Starting expand-all for all investibles")
+        
+        # Get all enabled investibles
+        with db_conn() as conn:
+            rows = conn.execute(
+                "SELECT ticker FROM investibles WHERE enabled=1 ORDER BY expansion_level, ticker"
+            ).fetchall()
+            tickers_to_expand = [row["ticker"] for row in rows]
+        
+        if not tickers_to_expand:
+            logger.info("No investibles to expand")
+            return
+        
+        total_tickers = len(tickers_to_expand)
+        with EXPANSION_LOCK:
+            EXPANSION_STATE["total"] = total_tickers
+            EXPANSION_STATE["progress"] = 0
+        
+        # Expand each ticker sequentially
+        for idx, ticker in enumerate(tickers_to_expand, 1):
+            with EXPANSION_LOCK:
+                EXPANSION_STATE["current_ticker"] = ticker
+                EXPANSION_STATE["progress"] = idx
+            
+            logger.info(f"Expanding {ticker} ({idx}/{total_tickers})")
+            
+            # Run expansion for this ticker
+            expand_portfolio_tree_background(ticker, max_stocks)
+            
+            # Check if we've hit max stocks
+            with db_conn() as conn:
+                current_count = conn.execute("SELECT COUNT(*) as cnt FROM investibles").fetchone()["cnt"]
+                if current_count >= max_stocks:
+                    logger.info(f"Reached max stocks limit ({max_stocks}), stopping expand-all")
+                    break
+        
+        logger.info("Expand-all complete")
+        
+    except Exception as e:
+        logger.error(f"Error in expand-all: {e}")
+        with EXPANSION_LOCK:
+            EXPANSION_STATE["error"] = str(e)
+    finally:
+        with EXPANSION_LOCK:
+            EXPANSION_STATE["is_running"] = False
+            EXPANSION_STATE["current_ticker"] = None
+
+
 def expand_portfolio_tree_background(start_ticker: str, max_stocks: int = 27):
     """
     Background task to expand portfolio using 1→3→9→27 pattern.
@@ -500,6 +567,81 @@ def expansion_status():
     return jsonify({
         "expansion": state,
         "budget": budget_stats
+    })
+
+
+@bp.route("/expand-all", methods=["POST"])
+def expand_all():
+    """
+    Expand ALL existing investibles iteratively.
+    
+    This allows compound expansion where stocks can be expanded multiple times,
+    creating deeper levels: Level 0 → 1 → 2 → 3, etc.
+    """
+    # Check if expansion already running
+    with EXPANSION_LOCK:
+        if EXPANSION_STATE["is_running"]:
+            return jsonify({
+                "error": "Expansion already in progress",
+                "current_ticker": EXPANSION_STATE["current_ticker"]
+            }), 409
+    
+    # Start expansion in background
+    max_stocks = int(Config.__dict__.get("EXPANSION_MAX_STOCKS", 27))
+    threading.Thread(
+        target=expand_all_investibles_background,
+        args=(max_stocks,),
+        daemon=True
+    ).start()
+    
+    return jsonify({
+        "success": True,
+        "message": "Started expanding all investibles",
+        "max_stocks": max_stocks
+    })
+
+
+@bp.route("/remove-children/<ticker>", methods=["DELETE"])
+def remove_children(ticker):
+    """Remove all children (similar/dependent stocks) for a ticker."""
+    ticker = ticker.upper()
+    
+    # Check if ticker exists
+    with db_conn() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM investibles WHERE ticker=?", (ticker,)
+        ).fetchone()
+        
+        if not exists:
+            return jsonify({"error": f"Investible {ticker} not found"}), 404
+        
+        # Delete all children recursively (children and grandchildren)
+        # First get all children
+        children = conn.execute(
+            "SELECT ticker FROM investibles WHERE parent_ticker=?", (ticker,)
+        ).fetchall()
+        
+        child_tickers = [row["ticker"] for row in children]
+        
+        # Delete grandchildren (children of children)
+        for child_ticker in child_tickers:
+            conn.execute(
+                "DELETE FROM investibles WHERE parent_ticker=?", (child_ticker,)
+            )
+        
+        # Delete direct children
+        result = conn.execute(
+            "DELETE FROM investibles WHERE parent_ticker=?", (ticker,)
+        )
+        conn.commit()
+        
+        total_deleted = result.rowcount
+        
+    return jsonify({
+        "success": True,
+        "ticker": ticker,
+        "deleted_count": total_deleted,
+        "message": f"Removed {total_deleted} children for {ticker}"
     })
 
 

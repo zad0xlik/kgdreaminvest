@@ -160,6 +160,11 @@ def get_categories():
                 "id": "think",
                 "name": "Think Worker",
                 "description": "Prompts for multi-agent committee decision-making"
+            },
+            {
+                "id": "options",
+                "name": "Options Workers",
+                "description": "Prompts for options monitoring and trading (chain selection, buy/sell decisions)"
             }
         ]
     })

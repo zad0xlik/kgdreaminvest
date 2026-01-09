@@ -127,7 +127,7 @@ def list_all_prompts() -> Dict[str, Dict[str, Any]]:
     Returns:
         Dictionary with category -> prompts mapping
     """
-    categories = ["expansion", "dream", "think"]
+    categories = ["expansion", "dream", "think", "options"]
     all_prompts = {}
     
     for category in categories:

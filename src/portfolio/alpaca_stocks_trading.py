@@ -45,6 +45,8 @@ def sync_alpaca_account(conn: sqlite3.Connection) -> Dict[str, Any]:
     """
     Sync cash balance and account info from Alpaca to local database.
     
+    On first sync, stores the starting balance for accurate portfolio tracking.
+    
     Args:
         conn: Database connection
         
@@ -63,6 +65,17 @@ def sync_alpaca_account(conn: sqlite3.Connection) -> Dict[str, Any]:
         # Update cash in local database
         cash = float(account.cash)
         set_cash(conn, cash)
+        
+        # On first sync, store the starting balance for accurate reconciliation
+        # Check if we've stored this before
+        from src.database.operations import kv_get, kv_set
+        
+        if not kv_get(conn, "alpaca_start_balance"):
+            # First time syncing - store the equity as starting balance
+            # Use equity (cash + positions) rather than just cash
+            starting_balance = float(account.equity)
+            kv_set(conn, "alpaca_start_balance", str(starting_balance))
+            logger.info(f"Stored Alpaca starting balance: ${starting_balance:.2f}")
         
         logger.info(f"Synced Alpaca account: ${cash:.2f} cash, "
                    f"${account.portfolio_value} total")

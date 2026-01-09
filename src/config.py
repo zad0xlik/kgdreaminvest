@@ -57,6 +57,11 @@ class Config:
     
     OPTIONS_INTERVAL = 60.0 / max(0.05, OPTIONS_WORKER_SPEED)
     
+    # Portfolio Expansion Configuration
+    EXPANSION_ENABLED = os.environ.get("EXPANSION_ENABLED", "true").lower() in ("1", "true", "yes")
+    EXPANSION_MAX_STOCKS = int(os.environ.get("EXPANSION_MAX_STOCKS", "27"))
+    EXPANSION_LLM_CALLS_PER_MIN = int(os.environ.get("EXPANSION_LLM_CALLS_PER_MIN", "10"))
+    
     # Debug mode
     DEBUG = os.environ.get("KGINVEST_DEBUG", "").lower() in ("1", "true", "yes")
     
@@ -66,10 +71,19 @@ class Config:
     INVESTIBLES = [ticker.strip().upper() for ticker in _investibles_env.split(",") if ticker.strip()]
    
     # Load bellwethers from environment or use default
-    _bellwethers_env = os.environ.get("BELLWETHERS", "^VIX,SPY,QQQ,TLT,UUP,^TNX,CL=F,TSM,VTI")
+    # Universal bellwethers (compatible with both Alpaca and Yahoo)
+    _bellwethers_env = os.environ.get("BELLWETHERS", "VXX,SPY,QQQ,TLT,UUP,IEF,USO,TSM,VTI")
     BELLWETHERS = [ticker.strip().upper() for ticker in _bellwethers_env.split(",") if ticker.strip()]
     
-    ALL_TICKERS = sorted(set(INVESTIBLES + BELLWETHERS))
+    # Yahoo-specific bellwethers (ALWAYS fetched via Yahoo Finance, regardless of DATA_PROVIDER)
+    # These are indices, futures, and forex that Alpaca doesn't support
+    _bellwethers_yf_env = os.environ.get("BELLWETHERS_YF", "^VIX,^TNX,CL=F,^GSPC,DX-Y.NYB")
+    BELLWETHERS_YF = [ticker.strip().upper() for ticker in _bellwethers_yf_env.split(",") if ticker.strip()]
+    
+    # Combined bellwethers (for database and UI purposes)
+    ALL_BELLWETHERS = list(set(BELLWETHERS + BELLWETHERS_YF))
+    
+    ALL_TICKERS = sorted(set(INVESTIBLES + ALL_BELLWETHERS))
     
     # Speeds (ticks/min)
     MARKET_SPEED = float(os.environ.get("MARKET_SPEED", "0.35"))   # ~ every 3 minutes
@@ -139,6 +153,8 @@ LLM_MAX_TOKENS = Config.LLM_MAX_TOKENS
 # Universe
 INVESTIBLES = Config.INVESTIBLES
 BELLWETHERS = Config.BELLWETHERS
+BELLWETHERS_YF = Config.BELLWETHERS_YF
+ALL_BELLWETHERS = Config.ALL_BELLWETHERS
 ALL_TICKERS = Config.ALL_TICKERS
 
 # Intervals
@@ -192,3 +208,8 @@ DATA_PROVIDER = Config.DATA_PROVIDER
 ALPACA_API_KEY = Config.ALPACA_API_KEY
 ALPACA_SECRET_KEY = Config.ALPACA_SECRET_KEY
 ALPACA_PAPER_MODE = Config.ALPACA_PAPER_MODE
+
+# Portfolio Expansion
+EXPANSION_ENABLED = Config.EXPANSION_ENABLED
+EXPANSION_MAX_STOCKS = Config.EXPANSION_MAX_STOCKS
+EXPANSION_LLM_CALLS_PER_MIN = Config.EXPANSION_LLM_CALLS_PER_MIN

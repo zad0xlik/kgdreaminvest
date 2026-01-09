@@ -1,72 +1,23 @@
-"""Options data fetcher using yfinance."""
+"""Options data fetcher with provider routing and universal utilities."""
 import logging
 from datetime import datetime
 from typing import List, Dict, Optional
 
 import pandas as pd
-import yfinance as yf
 
 from src.config import Config
 from src.market.greeks import enrich_option_with_greeks, calculate_dte
 
 logger = logging.getLogger("kginvest")
 
-
-def get_options_data(symbols: List[str]) -> pd.DataFrame:
-    """
-    Fetch options data for given symbols from yfinance.
-    
-    Args:
-        symbols: List of ticker symbols to fetch options for
-        
-    Returns:
-        DataFrame with all options data (calls and puts) for all symbols
-        
-    Columns include:
-        contractSymbol, lastTradeDate, strike, lastPrice, bid, ask, change, 
-        percentChange, volume, openInterest, impliedVolatility, inTheMoney,
-        contractSize, currency, Symbol, OptionType, Expiration
-    """
-    all_options_data = []
-
-    for symbol in symbols:
-        try:
-            # Fetch the stock data
-            stock = yf.Ticker(symbol)
-
-            # Get all available expiration dates
-            expirations = stock.options
-
-            for expiration in expirations:
-                # Fetch both calls and puts for this expiration
-                calls = stock.option_chain(expiration).calls
-                puts = stock.option_chain(expiration).puts
-
-                # Add symbol and expiration information
-                calls['Symbol'] = symbol
-                calls['OptionType'] = 'Call'
-                calls['Expiration'] = expiration
-
-                puts['Symbol'] = symbol
-                puts['OptionType'] = 'Put'
-                puts['Expiration'] = expiration
-
-                # Combine calls and puts
-                options = pd.concat([calls, puts])
-
-                # Add to the main list
-                all_options_data.append(options)
-
-            logger.info(f"Successfully fetched options data for {symbol}")
-        except Exception as e:
-            logger.error(f"Error fetching options data for {symbol}: {str(e)}")
-
-    # Combine all data into a single DataFrame
-    if all_options_data:
-        combined_options = pd.concat(all_options_data, ignore_index=True)
-        return combined_options
-    else:
-        return pd.DataFrame()
+# Import both providers at module load time to avoid import deadlocks in multi-threaded contexts
+from src.market.yahoo_options_client import get_options_data_yahoo
+try:
+    from src.market.alpaca_options_client import get_options_data_alpaca
+    ALPACA_OPTIONS_AVAILABLE = True
+except ImportError as e:
+    ALPACA_OPTIONS_AVAILABLE = False
+    logger.warning(f"Alpaca options client not available: {e}")
 
 
 def filter_options_by_criteria(options_df: pd.DataFrame, spot_prices: Dict[str, float]) -> pd.DataFrame:
@@ -281,3 +232,29 @@ def store_options_snapshot(conn, option_id: int, option_data: Dict):
         float(option_data.get('delta', 0)), float(option_data.get('gamma', 0)),
         float(option_data.get('theta', 0)), float(option_data.get('vega', 0))
     ))
+
+
+def get_options_data(symbols: List[str]) -> pd.DataFrame:
+    """
+    Fetch options data for given symbols using configured DATA_PROVIDER.
+    
+    Routes to Alpaca or Yahoo Finance based on Config.DATA_PROVIDER setting.
+    Uses pre-imported modules to avoid import deadlocks in multi-threaded contexts.
+    
+    Args:
+        symbols: List of ticker symbols to fetch options for
+        
+    Returns:
+        DataFrame with all options data (calls and puts) for all symbols
+    """
+    if Config.DATA_PROVIDER == "alpaca" and ALPACA_OPTIONS_AVAILABLE:
+        try:
+            logger.info(f"Fetching options data from Alpaca for {len(symbols)} symbols")
+            return get_options_data_alpaca(symbols)
+        except Exception as e:
+            logger.error(f"Alpaca options fetch failed, falling back to Yahoo: {e}")
+            logger.debug(f"Full error:", exc_info=True)
+            return get_options_data_yahoo(symbols)
+    else:
+        logger.info(f"Fetching options data from Yahoo Finance for {len(symbols)} symbols")
+        return get_options_data_yahoo(symbols)

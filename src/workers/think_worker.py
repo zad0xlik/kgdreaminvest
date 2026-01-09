@@ -30,7 +30,7 @@ from src.database import (
 )
 from src.llm import llm_chat_json
 from src.llm.prompts import get_prompt, format_prompt
-from src.portfolio import execute_paper_trades
+from src.portfolio import execute_trades
 from src.utils import clamp01, fmt_money, market_is_open_et, utc_now, jitter_sleep
 
 logger = logging.getLogger("kginvest.think")
@@ -273,7 +273,7 @@ class ThinkWorker:
 
             # Autotrade if allowed
             if AUTO_TRADE and starred and can_trade_now:
-                res = execute_paper_trades(
+                res = execute_trades(
                     conn, decisions, prices,
                     reason=f"autotrade insight {insight_id} (score={crit:.2f})",
                     insight_id=insight_id
