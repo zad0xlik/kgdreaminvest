@@ -111,21 +111,37 @@ def prepare_options_for_llm(options_df: pd.DataFrame, underlying: str) -> List[D
 
 def get_monitored_options_from_db(conn) -> List[Dict]:
     """
-    Get currently monitored options from database.
+    Get currently monitored options from database with latest pricing.
+    
+    Joins with options_snapshots to get the most recent price for each option.
+    This is critical for the OptionsThinkWorker to make trading decisions.
     
     Args:
         conn: Database connection
         
     Returns:
-        List of dicts with monitored option data
+        List of dicts with monitored option data including last_price
     """
+    # Query monitored options with latest snapshot price
     rows = conn.execute("""
-        SELECT option_id, underlying, option_type, strike, expiration, 
-               contract_symbol, delta, gamma, theta, vega,
-               volume, open_interest, implied_volatility, selection_reason
-        FROM options_monitored
-        WHERE enabled = 1
-        ORDER BY underlying, option_type, expiration, strike
+        SELECT om.option_id, om.underlying, om.option_type, om.strike, om.expiration, 
+               om.contract_symbol, om.delta, om.gamma, om.theta, om.vega,
+               om.volume, om.open_interest, om.implied_volatility, om.selection_reason,
+               COALESCE(latest_snap.last, 0.0) as last_price,
+               COALESCE(latest_snap.bid, 0.0) as bid,
+               COALESCE(latest_snap.ask, 0.0) as ask
+        FROM options_monitored om
+        LEFT JOIN (
+            SELECT os.option_id, os.last, os.bid, os.ask
+            FROM options_snapshots os
+            INNER JOIN (
+                SELECT option_id, MAX(ts) as max_ts
+                FROM options_snapshots
+                GROUP BY option_id
+            ) latest ON os.option_id = latest.option_id AND os.ts = latest.max_ts
+        ) latest_snap ON om.option_id = latest_snap.option_id
+        WHERE om.enabled = 1
+        ORDER BY om.underlying, om.option_type, om.expiration, om.strike
     """).fetchall()
     
     return [dict(row) for row in rows]

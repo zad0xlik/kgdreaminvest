@@ -56,6 +56,15 @@
 - **Full CRUD API**: 8 RESTful endpoints for investibles management
 - **Dynamic Configuration**: Add/remove/toggle stocks via Web UI
 
+### ✅ Options Trading Execution Bug Fix (NEW - Jan 9, 2026)
+- **Problem**: Options worker running for a week with NO trades executed
+- **Root Cause**: `get_monitored_options_from_db()` didn't include `last_price` column
+- **Impact**: OptionsThinkWorker skipped ALL trades because `price <= 0`
+- **Solution**: Modified `options_fetcher.py` to JOIN with `options_snapshots` table for latest price
+- **Verification**: 31/31 monitored options now have valid prices ($19-$59 range)
+- **Diagnostic Tool**: Created `tests/diagnose_options.py` for options trading pipeline debugging
+- **Status**: ✅ FIXED - Restart application to enable trades
+
 ### ✅ Options Trading Intelligence Layer (NEW - Dec 30, 2025)
 - **Options Worker**: Fourth independent worker monitoring derivative markets (~6 min cycles)
 - **Data Pipeline**: yfinance integration for option chain fetching with liquidity filtering

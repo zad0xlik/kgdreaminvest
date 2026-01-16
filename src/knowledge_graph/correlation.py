@@ -9,7 +9,7 @@ def corr(a: List[float], b: List[float]) -> float:
     """
     Compute correlation between two price series.
     
-    Uses percentage returns over the last 60 periods.
+    Uses percentage returns over the last 60 periods (or fewer if arrays differ in length).
     Returns 0.0 if insufficient data or invalid calculation.
     
     Args:
@@ -29,9 +29,11 @@ def corr(a: List[float], b: List[float]) -> float:
     if len(a) < 20 or len(b) < 20:
         return 0.0
     
-    # Use last 60 periods
-    x = np.array(a[-60:], dtype=float)
-    y = np.array(b[-60:], dtype=float)
+    # Use last 60 periods, but ensure both arrays are same length
+    # This handles cases where one series has less history than the other
+    lookback = min(60, len(a), len(b))
+    x = np.array(a[-lookback:], dtype=float)
+    y = np.array(b[-lookback:], dtype=float)
     
     # Compute percentage returns
     rx = np.diff(x) / np.maximum(x[:-1], 1e-9)
@@ -40,7 +42,7 @@ def corr(a: List[float], b: List[float]) -> float:
     if len(rx) < 10 or len(ry) < 10:
         return 0.0
     
-    # Pearson correlation
+    # Pearson correlation - both arrays now guaranteed to be same length
     c = float(np.corrcoef(rx, ry)[0, 1])
     
     # Handle NaN/Inf

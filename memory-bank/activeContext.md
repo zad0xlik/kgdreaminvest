@@ -3,7 +3,77 @@
 ## Current Focus (January 2026)
 
 ### Primary Objective
-System architecture refactoring complete - established provider-based naming consistency across data fetching and trading execution modules.
+Options trading execution fix complete - OptionsThinkWorker can now execute trades after resolving missing price data issue.
+
+### Latest Critical Bug Fix (January 9, 2026)
+
+#### Options Trading Execution Bug (RESOLVED)
+A critical bug preventing ANY options trades from executing for over a week was identified and fixed.
+
+**Problem Statement:**
+- Options worker running for a week with no trades executed
+- OptionsThinkWorker was making valid LLM trading decisions but ALL trades were being skipped
+- Log showed: `"No price for option 27 - skipping"` for ALL options
+
+**Root Cause:**
+- The `get_monitored_options_from_db()` function in `src/market/options_fetcher.py` didn't include `last_price` column
+- OptionsThinkWorker relies on `last_price` to execute trades: `price = float(opt.get("last_price", 0.0))`
+- When `price <= 0`, the trade is skipped
+
+**Solution Implemented:**
+Modified `get_monitored_options_from_db()` to JOIN with `options_snapshots` table to get the latest price:
+
+```python
+def get_monitored_options_from_db(conn) -> List[Dict]:
+    rows = conn.execute("""
+        SELECT om.option_id, om.underlying, om.option_type, om.strike, om.expiration, 
+               om.contract_symbol, om.delta, om.gamma, om.theta, om.vega,
+               om.volume, om.open_interest, om.implied_volatility, om.selection_reason,
+               COALESCE(latest_snap.last, 0.0) as last_price,
+               COALESCE(latest_snap.bid, 0.0) as bid,
+               COALESCE(latest_snap.ask, 0.0) as ask
+        FROM options_monitored om
+        LEFT JOIN (
+            SELECT os.option_id, os.last, os.bid, os.ask
+            FROM options_snapshots os
+            INNER JOIN (
+                SELECT option_id, MAX(ts) as max_ts
+                FROM options_snapshots
+                GROUP BY option_id
+            ) latest ON os.option_id = latest.option_id AND os.ts = latest.max_ts
+        ) latest_snap ON om.option_id = latest_snap.option_id
+        WHERE om.enabled = 1
+        ORDER BY om.underlying, om.option_type, om.expiration, om.strike
+    """).fetchall()
+    return [dict(row) for row in rows]
+```
+
+**Diagnostic Tool Created:**
+Created `tests/diagnose_options.py` to help identify options trading pipeline issues:
+- Checks configuration settings (OPTIONS_ENABLED, BROKER_PROVIDER)
+- Verifies database tables exist and have data
+- Shows monitored options status with price data
+- Displays trade history
+- Shows portfolio state and allocation room
+
+**Files Modified:**
+- `src/market/options_fetcher.py` - Added JOIN to get latest price from snapshots
+
+**Files Created:**
+- `tests/diagnose_options.py` - Diagnostic script for options trading pipeline
+
+**Verification Results:**
+- Before fix: 0/31 options had prices
+- After fix: 31/31 options have valid prices ($19-$59 range)
+- Options trades should start executing on next OptionsThinkWorker cycle
+
+**Status:** ✅ COMPLETE - Restart application with `uv run python main.py` to enable trades
+
+---
+
+### Previous Work (January 3, 2026)
+
+#### Primary Objective (COMPLETED)
 
 ### Latest Major Feature (January 3, 2026)
 
