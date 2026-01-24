@@ -568,6 +568,8 @@ function switchTab(tabName) {
   // Load tab-specific content
   if (tabName === 'prompts') {
     loadPromptsEditor();
+  } else if (tabName === 'positions') {
+    loadPositions();
   } else if (tabName === 'transactions') {
     loadTransactions();
   }

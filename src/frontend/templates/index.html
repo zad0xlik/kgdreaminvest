@@ -101,6 +101,7 @@
       <div class="tab-nav">
         <button class="tab-button active" data-tab="graph" onclick="switchTab('graph')">📊 Graph</button>
         <button class="tab-button" data-tab="plans" onclick="switchTab('plans')">⭐ Starred Plans</button>
+        <button class="tab-button" data-tab="positions" onclick="switchTab('positions')">📊 Positions</button>
         <button class="tab-button" data-tab="transactions" onclick="switchTab('transactions')">💰 Transactions</button>
         <button class="tab-button" data-tab="options" onclick="switchTab('options')">📈 Options</button>
         <button class="tab-button" data-tab="prompts" onclick="switchTab('prompts')">🤖 AI Prompts</button>
@@ -128,6 +129,15 @@
               </div>
             </div>
           {% endfor %}
+        </div>
+      </div>
+
+      <!-- Positions Tab -->
+      <div id="tab-positions" class="tab-content">
+        <div id="positions-content" style="padding:20px;overflow-y:auto">
+          <div style="text-align:center;padding:40px;color:#9ca3af">
+            Loading positions data...
+          </div>
         </div>
       </div>
 
@@ -347,6 +357,7 @@
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/graph.js"></script>
   <script src="/static/js/prompts.js"></script>
+  <script src="/static/js/positions.js"></script>
   <script src="/static/js/transactions.js"></script>
   <script src="/static/js/options.js"></script>
   <script src="/static/js/app.js"></script>
