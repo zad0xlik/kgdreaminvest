@@ -345,6 +345,120 @@ def state():
     })
 
 
+@bp.route("/positions")
+def get_positions():
+    """
+    Get all current positions directly from broker (real-time, no cache).
+    
+    For Alpaca: Fetches positions directly from Alpaca API
+    For Paper: Uses local database positions
+    
+    Returns:
+        JSON with account info and positions list
+    """
+    from src.config import Config
+    import logging
+    
+    logger = logging.getLogger("kginvest")
+    
+    if Config.BROKER_PROVIDER == "alpaca":
+        try:
+            from src.portfolio.alpaca_stocks_trading import get_alpaca_trading_client
+            
+            client = get_alpaca_trading_client()
+            
+            # Get account info
+            account = client.get_account()
+            
+            # Get ALL positions from Alpaca
+            alpaca_positions = client.get_all_positions()
+            
+            # Calculate daily P&L
+            daily_pl = float(account.equity) - float(account.last_equity)
+            daily_pl_pct = (daily_pl / float(account.last_equity) * 100) if float(account.last_equity) > 0 else 0
+            
+            positions = []
+            for p in alpaca_positions:
+                positions.append({
+                    "symbol": p.symbol,
+                    "qty": float(p.qty),
+                    "side": "long" if float(p.qty) > 0 else "short",
+                    "avg_entry_price": float(p.avg_entry_price),
+                    "current_price": float(p.current_price),
+                    "market_value": float(p.market_value),
+                    "cost_basis": float(p.cost_basis),
+                    "unrealized_pl": float(p.unrealized_pl),
+                    "unrealized_plpc": float(p.unrealized_plpc) * 100,  # Convert to percentage
+                    "asset_class": p.asset_class,
+                    "qty_available": float(p.qty_available) if hasattr(p, 'qty_available') else float(p.qty)
+                })
+            
+            return jsonify({
+                "provider": "alpaca",
+                "account": {
+                    "cash": float(account.cash),
+                    "buying_power": float(account.buying_power),
+                    "portfolio_value": float(account.portfolio_value),
+                    "equity": float(account.equity),
+                    "last_equity": float(account.last_equity),
+                    "daily_pl": daily_pl,
+                    "daily_pl_pct": daily_pl_pct,
+                    "status": account.status,
+                    "pattern_day_trader": account.pattern_day_trader,
+                    "account_number": account.account_number
+                },
+                "positions": positions,
+                "total_positions": len(positions)
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch Alpaca positions: {e}")
+            return jsonify({"error": str(e), "provider": "alpaca"}), 500
+    else:
+        # Paper trading - use local database
+        with db_conn() as conn:
+            # Get latest snapshot for prices
+            snap = conn.execute("SELECT * FROM snapshots ORDER BY snapshot_id DESC LIMIT 1").fetchone()
+            prices = json.loads(snap["prices_json"] or "{}") if snap else {}
+            
+            pf = portfolio_state(conn, prices=prices)
+            
+            # Calculate daily P&L (paper mode doesn't track this, so return 0)
+            positions = []
+            for p in pf["positions"]:
+                positions.append({
+                    "symbol": p["symbol"],
+                    "qty": float(p["qty"]),
+                    "side": "long",
+                    "avg_entry_price": float(p.get("avg_cost", 0)),
+                    "current_price": float(p["last_price"]),
+                    "market_value": float(p["mv"]),
+                    "cost_basis": float(p["qty"]) * float(p.get("avg_cost", 0)),
+                    "unrealized_pl": float(p["pnl"]),
+                    "unrealized_plpc": (float(p["pnl"]) / (float(p["qty"]) * float(p.get("avg_cost", 1))) * 100) if float(p.get("avg_cost", 0)) > 0 else 0,
+                    "asset_class": "us_equity",
+                    "qty_available": float(p["qty"])
+                })
+            
+            return jsonify({
+                "provider": "paper",
+                "account": {
+                    "cash": float(pf["cash"]),
+                    "buying_power": float(pf["cash"]),
+                    "portfolio_value": float(pf["cash"]) + float(pf["equity"]),
+                    "equity": float(pf["equity"]),
+                    "last_equity": float(pf["equity"]),
+                    "daily_pl": 0,
+                    "daily_pl_pct": 0,
+                    "status": "active",
+                    "pattern_day_trader": False,
+                    "account_number": None
+                },
+                "positions": positions,
+                "total_positions": len(positions)
+            })
+
+
 @bp.route("/symbols/search")
 def search_symbols():
     """
